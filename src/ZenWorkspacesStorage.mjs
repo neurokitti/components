@@ -38,6 +38,14 @@ var ZenWorkspacesStorage = {
       await db.execute(`
         CREATE INDEX IF NOT EXISTS idx_zen_workspaces_changes_uuid ON zen_workspaces_changes(uuid)
       `);
+
+      // Create a workspace theme table if it doesn't exist, theme can be null
+      await db.execute(`
+        CREATE TABLE IF NOT EXISTS zen_workspace_themes (
+          uuid TEXT PRIMARY KEY,
+          json TEXT
+        )
+      `);
     });
   },
 
@@ -171,6 +179,10 @@ var ZenWorkspacesStorage = {
         timestamp: Math.floor(now / 1000)
       });
 
+      await db.execute(`
+        DELETE FROM zen_workspace_themes WHERE uuid = :uuid
+      `, { uuid });
+
       await this.updateLastChangeTimestamp(db);
     });
 
@@ -237,6 +249,23 @@ var ZenWorkspacesStorage = {
         timestamp: Math.floor(now / 1000)
       });
     });
+  },
+
+  async saveWorkspaceTheme(uuid, theme) {
+    await PlacesUtils.withConnectionWrapper('ZenWorkspacesStorage.saveWorkspaceTheme', async (db) => {
+      await db.execute(`
+        INSERT OR REPLACE INTO zen_workspace_themes (uuid, json)
+        VALUES (:uuid, :json)
+      `, { uuid, json: JSON.stringify(theme) });
+    });
+  },
+
+  async getWorkspaceTheme(uuid) {
+    const db = await PlacesUtils.promiseDBConnection();
+    const result = await db.executeCached(`
+      SELECT json FROM zen_workspace_themes WHERE uuid = :uuid
+    `, { uuid });
+    return result.length ? JSON.parse(result[0].getResultByName('json')) : null;
   },
 
   async getChangedIDs() {

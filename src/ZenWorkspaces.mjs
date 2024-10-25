@@ -862,6 +862,13 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
     return Services.prefs.getBoolPref('zen.workspaces.individual-pinned-tabs');
   }
 
+  addChangeListeners(func) {
+    if (!this._changeListeners) {
+      this._changeListeners = [];
+    }
+    this._changeListeners.push(func);
+  }
+
   async changeWorkspace(window, onInit = false) {
     if (!this.workspaceEnabled || this._inChangingWorkspace) {
       return;
@@ -911,6 +918,10 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
 
     await this._propagateWorkspaceData();
     this._inChangingWorkspace = false;
+
+    for (let listener of this._changeListeners ?? []) {
+      listener(window);
+    }
   }
 
   async _updateWorkspacesChangeContextMenu() {

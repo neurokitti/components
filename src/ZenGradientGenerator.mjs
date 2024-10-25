@@ -9,6 +9,17 @@
       ChromeUtils.defineLazyGetter(this, 'toolbox', () => document.getElementById('navigator-toolbox'));
 
       this.initCanvas();
+      ZenWorkspaces.addChangeListeners(this.onWorkspaceChange.bind(this));
+      window.matchMedia('(prefers-color-scheme: dark)').addListener(this.onDarkModeChange.bind(this));
+    }
+
+    get isDarkMode() {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+
+    async onDarkModeChange(event) {
+      const currentWorkspace = await ZenWorkspaces.getActiveWorkspace();
+      this.onWorkspaceChange(currentWorkspace);
     }
 
     initContextMenu() {
@@ -65,10 +76,23 @@
 
     calculateInitialPosition(color) {
       const [r, g, b] = color;
-      // get the x and y position of the color
-      const x = r / 255;
-      const y = g / 255;
-      return { x, y };
+      const imageData = this.canvasCtx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+      const pixels = imageData.data;
+      let x = 0;
+      let y = 0;
+      let minDistance = Infinity;
+      for (let i = 0; i < pixels.length; i += 4) {
+        const r2 = pixels[i];
+        const g2 = pixels[i + 1];
+        const b2 = pixels[i + 2];
+        const distance = Math.sqrt((r - r2) ** 2 + (g - g2) ** 2 + (b - b2) ** 2);
+        if (distance < minDistance) {
+          minDistance = distance;
+          x = (i / 4) % this.canvas.width;
+          y = Math.floor((i / 4) / this.canvas.width);
+        }
+      }
+      return { x: x / this.canvas.width, y: y / this.canvas.height };
     }
 
     getColorFromPosition(x, y) {
@@ -77,7 +101,7 @@
       return imageData.data;
     }
 
-    createDot(color) {
+    createDot(color, fromWorkspace = false) {
       const [r, g, b] = color;
       const dot = document.createElement('div');
       dot.classList.add('zen-theme-picker-dot');
@@ -87,12 +111,18 @@
       dot.style.top = `${y * 100}%`;
       dot.addEventListener('mousedown', this.onDotMouseDown.bind(this));
       this.panel.querySelector('.zen-theme-picker-gradient').appendChild(dot);
+      if (!fromWorkspace) {
+        this.onDarkModeChange();
+      }
     }
 
     onDotMouseDown(event) {
       event.preventDefault();
       if (event.button === 2) {
-        this.draggedDot.remove();
+        if (this.numberOfDots <= 2 || !event.target.classList.contains('zen-theme-picker-dot')) {
+          return;
+        }
+        event.target.remove();
         return;
       }
       this.dragging = true;
@@ -121,12 +151,13 @@
         } else if (y > 1) {
           y = 0.99;
         }
-        const pixelX = x * rect.width - dotSize*2;
-        const pixelY = y * rect.height - dotSize*2;
+        const pixelX = x * rect.width - dotSize;
+        const pixelY = y * rect.height - dotSize;
         this.draggedDot.style.left = `${Math.min(maxX, Math.max(0, pixelX))}px`;
         this.draggedDot.style.top = `${Math.min(maxY, Math.max(0, pixelY))}px`;
         const color = this.getColorFromPosition(pixelX, pixelY);
         this.draggedDot.style.setProperty('--zen-theme-picker-dot-color', `rgb(${color[0]}, ${color[1]}, ${color[2]})`);
+        this.updateCurrentWorkspace();
       }
     }
 
@@ -143,6 +174,75 @@
       if (this.numberOfDots < ZenThemePicker.MAX_DOTS) {
         this.createDot([Math.random() * 255, Math.random() * 255, Math.random() * 255]);
       }
+    }
+
+    themedColors(colors) {
+      const isDarkMode = this.isDarkMode;
+      const factor = isDarkMode ? 0.1 : 1.9;
+      return colors.map(color => {
+        // make the color really light or really dark depending on the theme
+        const [r, g, b] = color;
+        return [
+          Math.floor(Math.min(255, Math.max(0, r * factor))),
+          Math.floor(Math.min(255, Math.max(0, g * factor))),
+          Math.floor(Math.min(255, Math.max(0, b * factor))),
+        ];
+      });
+    }
+
+    getGradient(colors) {
+      const themedColors = this.themedColors(colors);
+      return `linear-gradient(to right, ${themedColors.map(color => `rgb(${color[0]}, ${color[1]}, ${color[2]})`).join(', ')})`;
+    }
+
+    getTheme(colors) {
+      return {
+        type: 'gradient',
+        gradientColors: colors,
+      }
+    }
+
+    async onWorkspaceChange(workspace, skipUpdate = false) {
+      const uuid = workspace.uuid;
+      const theme = await ZenWorkspacesStorage.getWorkspaceTheme(uuid);
+      const appWrapepr = document.getElementById('zen-main-app-wrapper');
+      appWrapepr.removeAttribute('animating');
+      appWrapepr.setAttribute('animating', 'true');
+      document.body.style.setProperty('--zen-main-browser-background-old', document.body.style.getPropertyValue('--zen-main-browser-background'));
+      setTimeout(() => {
+        appWrapepr.removeAttribute('animating');
+      }, 1000);
+      if (!theme || theme.type !== 'gradient') {
+        document.body.style.removeProperty('--zen-main-browser-background');
+        return;
+      }
+      const gradient = this.getGradient(theme.gradientColors);
+      document.body.style.setProperty('--zen-main-browser-background', gradient);
+      if (!skipUpdate) {
+        this.recalculateDots(theme.gradientColors);
+      }
+    }
+
+    recalculateDots(colors) {
+      const dots = this.panel.querySelectorAll('.zen-theme-picker-dot');
+      for (let i = 0; i < colors.length; i++) {
+        dots[i]?.remove();
+      }
+      for (const color of colors) {
+        this.createDot(color, true);
+      }
+    }
+
+    async updateCurrentWorkspace() {
+      const dots = this.panel.querySelectorAll('.zen-theme-picker-dot');
+      const colors = Array.from(dots).map(dot => {
+        const color = dot.style.getPropertyValue('--zen-theme-picker-dot-color');
+        return color.match(/\d+/g).map(Number);
+      });
+      const gradient = this.getTheme(colors);
+      const currentWorkspace = await ZenWorkspaces.getActiveWorkspace();
+      await ZenWorkspacesStorage.saveWorkspaceTheme(currentWorkspace.uuid, gradient);
+      this.onWorkspaceChange(currentWorkspace, true);
     }
   }
 
