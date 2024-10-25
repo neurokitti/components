@@ -2,13 +2,19 @@
 {
   class ZenThemePicker extends ZenDOMOperatedFeature {
     static GRADIENT_IMAGE_URL = 'chrome://browser/content/zen-images/gradient.png';
+    static GRADIENT_DISPLAY_URL = 'chrome://browser/content/zen-images/gradient-display.png';
     static MAX_DOTS = 5;
+
+    currentOpacity = 0.5;
+    currentRotation = 45;
 
     init() {
       ChromeUtils.defineLazyGetter(this, 'panel', () => document.getElementById('PanelUI-zen-gradient-generator'));
       ChromeUtils.defineLazyGetter(this, 'toolbox', () => document.getElementById('navigator-toolbox'));
 
+      this.initRotation();
       this.initCanvas();
+
       ZenWorkspaces.addChangeListeners(this.onWorkspaceChange.bind(this));
       window.matchMedia('(prefers-color-scheme: dark)').addListener(this.onDarkModeChange.bind(this));
     }
@@ -17,9 +23,9 @@
       return window.matchMedia('(prefers-color-scheme: dark)').matches;
     }
 
-    async onDarkModeChange(event) {
+    async onDarkModeChange(event, skipUpdate = false) {
       const currentWorkspace = await ZenWorkspaces.getActiveWorkspace();
-      this.onWorkspaceChange(currentWorkspace);
+      this.onWorkspaceChange(currentWorkspace, skipUpdate);
     }
 
     initContextMenu() {
@@ -67,9 +73,77 @@
       this.initThemePicker();
     }
 
+    initRotation() {
+      this.rotationInput = document.getElementById('PanelUI-zen-gradient-degrees');
+      this.rotationInputDot = this.rotationInput.querySelector('.dot');
+      this.rotationInputText = this.rotationInput.querySelector('.text');
+      this.rotationInputDot.addEventListener('mousedown', this.onRotationMouseDown.bind(this));
+      this.rotationInput.addEventListener('wheel', this.onRotationWheel.bind(this));
+    }
+
+    onRotationWheel(event) {
+      event.preventDefault();
+      const delta = event.deltaY;
+      const degrees = this.currentRotation + (delta > 0 ? 10 : -10);
+      this.setRotationInput(degrees);
+      this.updateCurrentWorkspace();
+    }
+
+    onRotationMouseDown(event) {
+      event.preventDefault();
+      this.rotationDragging = true;
+      this.rotationInputDot.style.zIndex = 1;
+      this.rotationInputDot.classList.add('dragging');
+      document.addEventListener('mousemove', this.onRotationMouseMove.bind(this));
+      document.addEventListener('mouseup', this.onRotationMouseUp.bind(this));
+    }
+
+    onRotationMouseUp(event) {
+      this.rotationDragging = false;
+      this.rotationInputDot.style.zIndex = 0;
+      this.rotationInputDot.classList.remove('dragging');
+      document.removeEventListener('mousemove', this.onRotationMouseMove.bind(this));
+      document.removeEventListener('mouseup', this.onRotationMouseUp.bind(this));
+    }
+
+    onRotationMouseMove(event) {
+      if (this.rotationDragging) {
+        event.preventDefault();
+        const rect = this.rotationInput.getBoundingClientRect();
+        // Make the dot follow the mouse in a circle, it can't go outside or inside the circle
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const angle = Math.atan2(event.clientY - centerY, event.clientX - centerX);
+        const distance = Math.sqrt((event.clientX - centerX) ** 2 + (event.clientY - centerY) ** 2);
+        const radius = rect.width / 2;
+        let x = centerX + Math.cos(angle) * radius;
+        let y = centerY + Math.sin(angle) * radius;
+        if (distance > radius) {
+          x = event.clientX;
+          y = event.clientY;
+        }
+        const degrees = Math.round(Math.atan2(y - centerY, x - centerX) * 180 / Math.PI);
+        this.setRotationInput(degrees);
+        this.updateCurrentWorkspace();
+      }
+    }
+
+    setRotationInput(degrees) {
+      let fixedRotation = degrees;
+      while (fixedRotation < 0) {
+        fixedRotation += 360;
+      }
+      while (fixedRotation >= 360) {
+        fixedRotation -= 360;
+      }
+      this.currentRotation = degrees;
+      this.rotationInputDot.style.transform = `rotate(${degrees - 20}deg)`;
+      this.rotationInputText.textContent = `${fixedRotation}°`;
+    }
+
     initThemePicker() {
       const themePicker = this.panel.querySelector('.zen-theme-picker-gradient');
-      themePicker.style.setProperty('--zen-theme-picker-gradient-image', `url(${ZenThemePicker.GRADIENT_IMAGE_URL})`);
+      themePicker.style.setProperty('--zen-theme-picker-gradient-image', `url(${ZenThemePicker.GRADIENT_DISPLAY_URL})`);
       themePicker.addEventListener('mousemove', this.onDotMouseMove.bind(this));
       themePicker.addEventListener('mouseup', this.onDotMouseUp.bind(this));
     }
@@ -112,17 +186,13 @@
       dot.addEventListener('mousedown', this.onDotMouseDown.bind(this));
       this.panel.querySelector('.zen-theme-picker-gradient').appendChild(dot);
       if (!fromWorkspace) {
-        this.onDarkModeChange();
+        this.onDarkModeChange(null, true);
       }
     }
 
     onDotMouseDown(event) {
       event.preventDefault();
       if (event.button === 2) {
-        if (this.numberOfDots <= 2 || !event.target.classList.contains('zen-theme-picker-dot')) {
-          return;
-        }
-        event.target.remove();
         return;
       }
       this.dragging = true;
@@ -135,33 +205,42 @@
       if (this.dragging) {
         event.preventDefault();
         const rect = this.panel.querySelector('.zen-theme-picker-gradient').getBoundingClientRect();
-        let x = (event.clientX - rect.left) / rect.width;
-        let y = (event.clientY - rect.top) / rect.height;
-        // percentage to pixel
-        const dotSize = 16;
-        const maxX = rect.width - dotSize;
-        const maxY = rect.height - dotSize;
-        if (x < 0) {
-          x = 0.01;
-        } else if (x > 1) {
-          x = 0.99;
+        const padding = 90; // each side
+        // do NOT let the ball be draged outside of an imaginary circle. You can drag it anywhere inside the circle
+        // if the distance between the center of the circle and the dragged ball is bigger than the radius, then the ball 
+        // should be placed on the edge of the circle. If it's inside the circle, then the ball just follows the mouse
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const radius = (rect.width - padding) / 2;
+        let pixelX = event.clientX;
+        let pixelY = event.clientY;
+        const distance = Math.sqrt((pixelX - centerX) ** 2 + (pixelY - centerY) ** 2);
+        if (distance > radius) {
+          const angle = Math.atan2(pixelY - centerY, pixelX - centerX);
+          pixelX = centerX + Math.cos(angle) * radius;
+          pixelY = centerY + Math.sin(angle) * radius;
         }
-        if (y < 0) {
-          y = 0.01;
-        } else if (y > 1) {
-          y = 0.99;
-        }
-        const pixelX = x * rect.width - dotSize;
-        const pixelY = y * rect.height - dotSize;
-        this.draggedDot.style.left = `${Math.min(maxX, Math.max(0, pixelX))}px`;
-        this.draggedDot.style.top = `${Math.min(maxY, Math.max(0, pixelY))}px`;
-        const color = this.getColorFromPosition(pixelX, pixelY);
+        // set the location of the dot in pixels
+        const relativeX = pixelX - rect.left;
+        const relativeY = pixelY - rect.top;
+        this.draggedDot.style.left = `${relativeX}px`;
+        this.draggedDot.style.top = `${relativeY}px`;
+        const color = this.getColorFromPosition(relativeX, relativeY);
         this.draggedDot.style.setProperty('--zen-theme-picker-dot-color', `rgb(${color[0]}, ${color[1]}, ${color[2]})`);
         this.updateCurrentWorkspace();
       }
     }
 
     onDotMouseUp(event) {
+      if (event.button === 2) {
+        if (this.numberOfDots <= 2 || !event.target.classList.contains('zen-theme-picker-dot')
+            || this.numberOfDots === 1) {
+          return;
+        }
+        event.target.remove();
+        this.updateCurrentWorkspace();
+        return;
+      }
       if (this.dragging) {
         event.preventDefault();
         this.dragging = false;
@@ -178,27 +257,39 @@
 
     themedColors(colors) {
       const isDarkMode = this.isDarkMode;
-      const factor = isDarkMode ? 0.1 : 1.9;
+      const factor = isDarkMode ? 0.5 : 1.1;
       return colors.map(color => {
-        // make the color really light or really dark depending on the theme
-        const [r, g, b] = color;
         return [
-          Math.floor(Math.min(255, Math.max(0, r * factor))),
-          Math.floor(Math.min(255, Math.max(0, g * factor))),
-          Math.floor(Math.min(255, Math.max(0, b * factor))),
-        ];
+          Math.min(255, color[0] * factor),
+          Math.min(255, color[1] * factor),
+          Math.min(255, color[2] * factor),
+        ]
       });
+    }
+
+    onOpacityChange(event) {
+      this.currentOpacity = event.target.value;
+      this.updateCurrentWorkspace();
+    }
+
+    getSingleRGBColor(color) {
+      return `color-mix(in srgb, rgb(${color[0]}, ${color[1]}, ${color[2]}) ${this.currentOpacity * 100}%, var(--zen-themed-toolbar-bg) ${(1 - this.currentOpacity) * 100}%)`;
     }
 
     getGradient(colors) {
       const themedColors = this.themedColors(colors);
-      return `linear-gradient(to right, ${themedColors.map(color => `rgb(${color[0]}, ${color[1]}, ${color[2]})`).join(', ')})`;
+      if (themedColors.length === 1) {
+        return this.getSingleRGBColor(themedColors[0]);
+      }
+      return `linear-gradient(${this.currentRotation}deg, ${themedColors.map(color => this.getSingleRGBColor(color)).join(', ')})`;
     }
 
-    getTheme(colors) {
+    getTheme(colors, opacity = 0.5, rotation = 45) {
       return {
         type: 'gradient',
         gradientColors: colors,
+        opacity,
+        rotation,
       }
     }
 
@@ -206,16 +297,22 @@
       const uuid = workspace.uuid;
       const theme = await ZenWorkspacesStorage.getWorkspaceTheme(uuid);
       const appWrapepr = document.getElementById('zen-main-app-wrapper');
-      appWrapepr.removeAttribute('animating');
-      appWrapepr.setAttribute('animating', 'true');
-      document.body.style.setProperty('--zen-main-browser-background-old', document.body.style.getPropertyValue('--zen-main-browser-background'));
-      setTimeout(() => {
+      if (!skipUpdate) {
         appWrapepr.removeAttribute('animating');
-      }, 1000);
+        appWrapepr.setAttribute('animating', 'true');
+        document.body.style.setProperty('--zen-main-browser-background-old', document.body.style.getPropertyValue('--zen-main-browser-background'));
+        setTimeout(() => {
+          appWrapepr.removeAttribute('animating');
+        }, 1000);
+      }
       if (!theme || theme.type !== 'gradient') {
         document.body.style.removeProperty('--zen-main-browser-background');
         return;
       }
+      this.currentOpacity = theme.opacity || 0.5;
+      this.currentRotation = theme.rotation || 45;
+      document.getElementById('PanelUI-zen-gradient-generator-opacity').value = this.currentOpacity;
+      this.setRotationInput(this.currentRotation);
       const gradient = this.getGradient(theme.gradientColors);
       document.body.style.setProperty('--zen-main-browser-background', gradient);
       if (!skipUpdate) {
@@ -239,7 +336,7 @@
         const color = dot.style.getPropertyValue('--zen-theme-picker-dot-color');
         return color.match(/\d+/g).map(Number);
       });
-      const gradient = this.getTheme(colors);
+      const gradient = this.getTheme(colors, this.currentOpacity, this.currentRotation);
       const currentWorkspace = await ZenWorkspaces.getActiveWorkspace();
       await ZenWorkspacesStorage.saveWorkspaceTheme(currentWorkspace.uuid, gradient);
       this.onWorkspaceChange(currentWorkspace, true);
