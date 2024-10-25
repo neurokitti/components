@@ -16,9 +16,8 @@ class ZenBrowserManagerSidebar extends ZenDOMOperatedFeature {
   tabBox;
 
   DEFAULT_MOBILE_USER_AGENT = `Mozilla/5.0 (Android 12; Mobile; rv:129.0) Gecko/20100101 Firefox/${AppConstants.ZEN_FIREFOX_VERSION}`;
-  MAX_SIDEBAR_PANELS = 9; // +1 for the add panel button
-  MAX_RUNS = 3;
-
+  MAX_SIDEBAR_PANELS = Services.prefs.getIntPref('zen.sidebar.max-webpanels');
+  
   init() {
     ChromeUtils.defineLazyGetter(this, 'sidebar', () => document.getElementById('zen-sidebar-web-panel'));
     ChromeUtils.defineLazyGetter(this, 'forwardButton', () => document.getElementById('zen-sidebar-web-panel-forward'));
