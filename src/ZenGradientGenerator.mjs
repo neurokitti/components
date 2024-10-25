@@ -1,12 +1,14 @@
 
 {
   class ZenThemePicker extends ZenDOMOperatedFeature {
+    static GRADIENT_IMAGE_URL = 'chrome://browser/content/zen-images/gradient.png';
+    static MAX_DOTS = 5;
+
     init() {
       ChromeUtils.defineLazyGetter(this, 'panel', () => document.getElementById('PanelUI-zen-gradient-generator'));
       ChromeUtils.defineLazyGetter(this, 'toolbox', () => document.getElementById('navigator-toolbox'));
 
-      this.initContextMenu();
-      this.initThemePicker();
+      this.initCanvas();
     }
 
     initContextMenu() {
@@ -25,8 +27,38 @@
       });
     }
 
+    initCanvas() {
+      this.image = new Image();
+      this.image.src = ZenThemePicker.GRADIENT_IMAGE_URL;
+
+      // wait for the image to load
+      this.image.onload = this.onImageLoad.bind(this);
+    }
+
+    onImageLoad() {
+      // resize the image to fit the panel
+      const imageSize = 300 - 20; // 20 is the padding (10px)
+      const scale = imageSize / Math.max(this.image.width, this.image.height);
+      this.image.width *= scale;
+      this.image.height *= scale;
+
+      this.canvas = document.createElement('canvas');
+      this.canvas.width = this.image.width;
+      this.canvas.height = this.image.height;
+      this.panel.appendChild(this.canvas);
+      this.canvasCtx = this.canvas.getContext('2d');
+      this.canvasCtx.drawImage(this.image, 0, 0);
+
+      this.canvas.setAttribute('hidden', 'true');
+
+      // Call the rest of the initialization
+      this.initContextMenu();
+      this.initThemePicker();
+    }
+
     initThemePicker() {
       const themePicker = this.panel.querySelector('.zen-theme-picker-gradient');
+      themePicker.style.setProperty('--zen-theme-picker-gradient-image', `url(${ZenThemePicker.GRADIENT_IMAGE_URL})`);
       themePicker.addEventListener('mousemove', this.onDotMouseMove.bind(this));
       themePicker.addEventListener('mouseup', this.onDotMouseUp.bind(this));
     }
@@ -40,11 +72,9 @@
     }
 
     getColorFromPosition(x, y) {
-      // get the color from the x and y position
-      const r = x * 255;
-      const g = y * 255;
-      const b = 0;
-      return [r, g, b];
+      // get the color from the x and y from the image
+      const imageData = this.canvasCtx.getImageData(x, y, 1, 1);
+      return imageData.data;
     }
 
     createDot(color) {
@@ -74,7 +104,7 @@
     onDotMouseMove(event) {
       if (this.dragging) {
         event.preventDefault();
-        const rect = this.panel.getBoundingClientRect();
+        const rect = this.panel.querySelector('.zen-theme-picker-gradient').getBoundingClientRect();
         let x = (event.clientX - rect.left) / rect.width;
         let y = (event.clientY - rect.top) / rect.height;
         // percentage to pixel
@@ -82,20 +112,20 @@
         const maxX = rect.width - dotSize;
         const maxY = rect.height - dotSize;
         if (x < 0) {
-          x = 0;
+          x = 0.01;
         } else if (x > 1) {
-          x = 1;
+          x = 0.99;
         }
         if (y < 0) {
-          y = 0;
+          y = 0.01;
         } else if (y > 1) {
-          y = 1;
+          y = 0.99;
         }
         const pixelX = x * rect.width - dotSize*2;
         const pixelY = y * rect.height - dotSize*2;
         this.draggedDot.style.left = `${Math.min(maxX, Math.max(0, pixelX))}px`;
         this.draggedDot.style.top = `${Math.min(maxY, Math.max(0, pixelY))}px`;
-        const color = this.getColorFromPosition(x, y);
+        const color = this.getColorFromPosition(pixelX, pixelY);
         this.draggedDot.style.setProperty('--zen-theme-picker-dot-color', `rgb(${color[0]}, ${color[1]}, ${color[2]})`);
       }
     }
@@ -109,7 +139,10 @@
         this.draggedDot = null;
         return;
       }
-      this.createDot([Math.random() * 255, Math.random() * 255, Math.random() * 255]);
+      this.numberOfDots = this.panel.querySelectorAll('.zen-theme-picker-dot').length;
+      if (this.numberOfDots < ZenThemePicker.MAX_DOTS) {
+        this.createDot([Math.random() * 255, Math.random() * 255, Math.random() * 255]);
+      }
     }
   }
 
