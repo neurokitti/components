@@ -366,9 +366,11 @@
         appWrapepr.removeAttribute('animating');
         appWrapepr.setAttribute('animating', 'true');
         document.body.style.setProperty('--zen-main-browser-background-old', document.body.style.getPropertyValue('--zen-main-browser-background'));
-        setTimeout(() => {
-          appWrapepr.removeAttribute('animating');
-        }, 1000);
+        window.requestAnimationFrame(() => {
+          setTimeout(() => {
+            appWrapepr.removeAttribute('animating');
+          }, 600);
+        });
       }
       this.customColorList.innerHTML = '';
       if (!theme || theme.type !== 'gradient') {
