@@ -152,6 +152,7 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
       this._initializeWorkspaceTabContextMenus();
       window.addEventListener('TabBrowserInserted', this.onTabBrowserInserted.bind(this));
       let workspaces = await this._workspaces();
+      gZenThemePicker.init();
       if (workspaces.workspaces.length === 0) {
         await this.createAndSaveWorkspace('Default Workspace', true);
       } else {

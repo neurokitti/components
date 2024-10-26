@@ -1,12 +1,14 @@
 
 {
-  class ZenThemePicker extends ZenDOMOperatedFeature {
+  class ZenThemePicker extends ZenMultiWindowFeature {
     static GRADIENT_IMAGE_URL = 'chrome://browser/content/zen-images/gradient.png';
     static GRADIENT_DISPLAY_URL = 'chrome://browser/content/zen-images/gradient-display.png';
     static MAX_DOTS = 5;
 
     currentOpacity = 0.5;
     currentRotation = 45;
+
+    numberOfDots = 0;
 
     init() {
       if (!Services.prefs.getBoolPref('zen.theme.gradient', true) || !ZenWorkspaces.shouldHaveWorkspaces) {
@@ -54,6 +56,10 @@
       this.image = new Image();
       this.image.src = ZenThemePicker.GRADIENT_IMAGE_URL;
 
+      this.canvas = document.createElement('canvas');
+      this.panel.appendChild(this.canvas);
+      this.canvasCtx = this.canvas.getContext('2d');
+
       // wait for the image to load
       this.image.onload = this.onImageLoad.bind(this);
     }
@@ -65,11 +71,8 @@
       this.image.width *= scale;
       this.image.height *= scale;
 
-      this.canvas = document.createElement('canvas');
       this.canvas.width = this.image.width;
       this.canvas.height = this.image.height;
-      this.panel.appendChild(this.canvas);
-      this.canvasCtx = this.canvas.getContext('2d');
       this.canvasCtx.drawImage(this.image, 0, 0);
 
       this.canvas.setAttribute('hidden', 'true');
@@ -363,53 +366,63 @@
       // Use theme from workspace object or passed theme
       const workspaceTheme = theme || workspace.theme;
 
-      const appWrapper = document.getElementById('zen-main-app-wrapper');
-      if (!skipUpdate) {
-        appWrapper.removeAttribute('animating');
-        appWrapper.setAttribute('animating', 'true');
-        document.body.style.setProperty('--zen-main-browser-background-old',
-            document.body.style.getPropertyValue('--zen-main-browser-background')
-        );
-        window.requestAnimationFrame(() => {
-          setTimeout(() => {
-            appWrapper.removeAttribute('animating');
-          }, 600);
-        });
-      }
+      await this.foreachWindowAsActive(async (browser) => {
+        // Do not rebuild if the workspace is not the same as the current one
+        const windowWorkspace = await browser.ZenWorkspaces.getActiveWorkspace();
+        if (windowWorkspace.uuid !== uuid) {
+          return;
+        }
 
-      this.customColorList.innerHTML = '';
-      if (!workspaceTheme || workspaceTheme.type !== 'gradient') {
-        document.body.style.removeProperty('--zen-main-browser-background');
-        this.updateNoise(0);
+        const appWrapper = browser.document.getElementById('zen-main-app-wrapper');
         if (!skipUpdate) {
-          for (const dot of this.panel.querySelectorAll('.zen-theme-picker-dot')) {
-            dot.remove();
+          appWrapper.removeAttribute('animating');
+          appWrapper.setAttribute('animating', 'true');
+          browser.document.body.style.setProperty('--zen-main-browser-background-old',
+            browser.document.body.style.getPropertyValue('--zen-main-browser-background')
+          );
+          browser.window.requestAnimationFrame(() => {
+            setTimeout(() => {
+              appWrapper.removeAttribute('animating');
+            }, 600);
+          });
+        }
+
+        browser.gZenThemePicker.customColorList.innerHTML = '';
+        if (!workspaceTheme || workspaceTheme.type !== 'gradient') {
+          browser.document.body.style.removeProperty('--zen-main-browser-background');
+          browser.gZenThemePicker.updateNoise(0);
+          if (!skipUpdate) {
+            for (const dot of browser.gZenThemePicker.panel.querySelectorAll('.zen-theme-picker-dot')) {
+              dot.remove();
+            }
+          }
+          return;
+        }
+
+        browser.gZenThemePicker.currentOpacity = workspaceTheme.opacity || 0.5;
+        browser.gZenThemePicker.currentRotation = workspaceTheme.rotation || 45;
+        browser.gZenThemePicker.currentTexture = workspaceTheme.texture || 0;
+
+        browser.gZenThemePicker.numberOfDots = workspaceTheme.gradientColors.length;
+
+        browser.document.getElementById('PanelUI-zen-gradient-generator-opacity').value = browser.gZenThemePicker.currentOpacity;
+        browser.document.getElementById('PanelUI-zen-gradient-generator-texture').value = browser.gZenThemePicker.currentTexture;
+        browser.gZenThemePicker.setRotationInput(browser.gZenThemePicker.currentRotation);
+
+        const gradient = browser.gZenThemePicker.getGradient(workspaceTheme.gradientColors);
+        browser.gZenThemePicker.updateNoise(workspaceTheme.texture);
+
+        for (const dot of workspaceTheme.gradientColors) {
+          if (dot.isCustom) {
+            browser.gZenThemePicker.addColorToCustomList(dot.c);
           }
         }
-        return;
-      }
 
-      this.currentOpacity = workspaceTheme.opacity || 0.5;
-      this.currentRotation = workspaceTheme.rotation || 45;
-      this.currentTexture = workspaceTheme.texture || 0;
-
-      document.getElementById('PanelUI-zen-gradient-generator-opacity').value = this.currentOpacity;
-      document.getElementById('PanelUI-zen-gradient-generator-texture').value = this.currentTexture;
-      this.setRotationInput(this.currentRotation);
-
-      const gradient = this.getGradient(workspaceTheme.gradientColors);
-      this.updateNoise(workspaceTheme.texture);
-
-      for (const dot of workspaceTheme.gradientColors) {
-        if (dot.isCustom) {
-          this.addColorToCustomList(dot.c);
+        browser.document.body.style.setProperty('--zen-main-browser-background', gradient);
+        if (!skipUpdate) {
+          browser.gZenThemePicker.recalculateDots(workspaceTheme.gradientColors);
         }
-      }
-
-      document.body.style.setProperty('--zen-main-browser-background', gradient);
-      if (!skipUpdate) {
-        this.recalculateDots(workspaceTheme.gradientColors);
-      }
+      });
     }
 
     removeCustomColor(event) {
