@@ -280,12 +280,12 @@
 
     onDotMouseUp(event) {
       if (event.button === 2) {
-        if (this.numberOfDots < 2 || !event.target.classList.contains('zen-theme-picker-dot')
-            || this.numberOfDots === 1) {
+        if (this.numberOfDots < 2 || !event.target.classList.contains('zen-theme-picker-dot')) {
           return;
         }
         event.target.remove();
         this.updateCurrentWorkspace();
+        this.numberOfDots--;
         return;
       }
       if (this.dragging) {
