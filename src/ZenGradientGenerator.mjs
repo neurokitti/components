@@ -9,7 +9,7 @@
     currentRotation = 45;
 
     init() {
-      if (!Services.prefs.getBoolPref('zen.theme.gradient', true)) {
+      if (!Services.prefs.getBoolPref('zen.theme.gradient', true) || !ZenWorkspaces.shouldHaveWorkspaces) {
         return;
       }
 
