@@ -167,6 +167,13 @@ var ZenWorkspacesStorage = {
       default: !!row.getResultByName('is_default'),
       containerTabId: row.getResultByName('container_id'),
       position: row.getResultByName('position'),
+      theme: row.getResultByName('theme_type') ? {
+        type: row.getResultByName('theme_type'),
+        gradientColors: JSON.parse(row.getResultByName('theme_colors')),
+        opacity: row.getResultByName('theme_opacity'),
+        rotation: row.getResultByName('theme_rotation'),
+        texture: row.getResultByName('theme_texture')
+      } : null
     }));
   },
 
@@ -288,32 +295,6 @@ var ZenWorkspacesStorage = {
       await this.markChanged(uuid);
       await this.updateLastChangeTimestamp(db);
     });
-  },
-
-  async getWorkspaceTheme(uuid) {
-    const db = await PlacesUtils.promiseDBConnection();
-    const result = await db.executeCached(`
-      SELECT
-        theme_type,
-        theme_colors,
-        theme_opacity,
-        theme_rotation,
-        theme_texture
-      FROM zen_workspaces
-      WHERE uuid = :uuid
-    `, { uuid });
-
-    if (!result.length || !result[0].getResultByName('theme_type')) {
-      return null;
-    }
-
-    return {
-      type: result[0].getResultByName('theme_type'),
-      gradientColors: JSON.parse(result[0].getResultByName('theme_colors')),
-      opacity: result[0].getResultByName('theme_opacity'),
-      rotation: result[0].getResultByName('theme_rotation'),
-      texture: result[0].getResultByName('theme_texture')
-    };
   },
 
   async getChangedIDs() {
