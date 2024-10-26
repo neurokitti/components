@@ -20,7 +20,12 @@ Utils.deferGetSet(ZenWorkspaceRecord, "cleartext", [
     "icon",
     "default",
     "containerTabId",
-    "position"
+    "position",
+    "theme_type",
+    "theme_colors",
+    "theme_opacity",
+    "theme_rotation",
+    "theme_texture"
 ]);
 
 // Define ZenWorkspacesStore
@@ -111,6 +116,13 @@ ZenWorkspacesStore.prototype.createRecord = async function (id, collection) {
             record.default = workspace.default;
             record.containerTabId = workspace.containerTabId;
             record.position = workspace.position;
+            if (workspace.theme) {
+                record.theme_type = workspace.theme.type;
+                record.theme_colors = JSON.stringify(workspace.theme.gradientColors);
+                record.theme_opacity = workspace.theme.opacity;
+                record.theme_rotation = workspace.theme.rotation;
+                record.theme_texture = workspace.theme.texture;
+            }
             record.deleted = false;
         } else {
             record.deleted = true;
@@ -136,7 +148,14 @@ ZenWorkspacesStore.prototype.create = async function (record) {
             icon: record.icon,
             default: record.default,
             containerTabId: record.containerTabId,
-            position: record.position
+            position: record.position,
+            theme: record.theme_type ? {
+                type: record.theme_type,
+                gradientColors: JSON.parse(record.theme_colors),
+                opacity: record.theme_opacity,
+                rotation: record.theme_rotation,
+                texture: record.theme_texture
+            } : null
         };
         await ZenWorkspacesStorage.saveWorkspace(workspace,false);
     } catch (error) {
@@ -206,6 +225,30 @@ ZenWorkspacesStore.prototype._validateRecord = function (record) {
     }
     if(record.position != null && typeof record.position !== "number") {
         throw new Error(`Invalid position for workspace ID ${record.id}`);
+    }
+
+    // Validate theme properties if they exist
+    if (record.theme_type) {
+        if (typeof record.theme_type !== "string") {
+            throw new Error(`Invalid theme_type for workspace ID ${record.id}`);
+        }
+        if (!record.theme_colors || typeof record.theme_colors !== "string") {
+            throw new Error(`Invalid theme_colors for workspace ID ${record.id}`);
+        }
+        try {
+            JSON.parse(record.theme_colors);
+        } catch (e) {
+            throw new Error(`Invalid theme_colors JSON for workspace ID ${record.id}`);
+        }
+        if (record.theme_opacity != null && typeof record.theme_opacity !== "number") {
+            throw new Error(`Invalid theme_opacity for workspace ID ${record.id}`);
+        }
+        if (record.theme_rotation != null && typeof record.theme_rotation !== "number") {
+            throw new Error(`Invalid theme_rotation for workspace ID ${record.id}`);
+        }
+        if (record.theme_texture != null && typeof record.theme_texture !== "number") {
+            throw new Error(`Invalid theme_texture for workspace ID ${record.id}`);
+        }
     }
 };
 
@@ -399,7 +442,7 @@ ZenWorkspacesEngine.prototype.constructor = ZenWorkspacesEngine;
 ZenWorkspacesEngine.prototype._storeObj = ZenWorkspacesStore;
 ZenWorkspacesEngine.prototype._trackerObj = ZenWorkspacesTracker;
 ZenWorkspacesEngine.prototype._recordObj = ZenWorkspaceRecord;
-ZenWorkspacesEngine.prototype.version = 1;
+ZenWorkspacesEngine.prototype.version = 2;
 
 ZenWorkspacesEngine.prototype.syncPriority = 10;
 ZenWorkspacesEngine.prototype.allowSkippedRecord = false;

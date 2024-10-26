@@ -273,7 +273,8 @@ var ZenWorkspacesStorage = {
     });
   },
 
-  async saveWorkspaceTheme(uuid, theme) {
+  async saveWorkspaceTheme(uuid, theme, notifyObservers = true) {
+    const changedUUIDs = [uuid];
     await PlacesUtils.withConnectionWrapper('saveWorkspaceTheme', async (db) => {
       await db.execute(`
         UPDATE zen_workspaces
@@ -298,6 +299,10 @@ var ZenWorkspacesStorage = {
       await this.markChanged(uuid);
       await this.updateLastChangeTimestamp(db);
     });
+
+    if (notifyObservers) {
+      this._notifyWorkspacesChanged("zen-workspace-updated", changedUUIDs);
+    }
   },
 
   async getChangedIDs() {
