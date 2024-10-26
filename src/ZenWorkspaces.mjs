@@ -64,7 +64,6 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
           !this._workspaceCache.lastChangeTimestamp ||
           lastChangeTimestamp > this._workspaceCache.lastChangeTimestamp
         ) {
-          this._workspaceCache = null;
           await this._propagateWorkspaceData();
         }
       } catch (error) {
@@ -236,7 +235,6 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
 
   async saveWorkspace(workspaceData) {
     await ZenWorkspacesStorage.saveWorkspace(workspaceData);
-    this._workspaceCache = null;
     await this._propagateWorkspaceData();
     await this._updateWorkspacesChangeContextMenu();
   }
@@ -248,7 +246,6 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
     this._deleteAllTabsInWorkspace(windowID);
     delete this._lastSelectedWorkspaceTabs[windowID];
     await ZenWorkspacesStorage.removeWorkspace(windowID);
-    this._workspaceCache = null;
     await this._propagateWorkspaceData();
     await this._updateWorkspacesChangeContextMenu();
   }
@@ -332,7 +329,7 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
     );
   }
 
-  async _propagateWorkspaceData({ ignoreStrip = false } = {}) {
+  async _propagateWorkspaceData({ ignoreStrip = false, clearCache = true } = {}) {
     await this.foreachWindowAsActive(async (browser) => {
       let workspaceList = browser.document.getElementById('PanelUI-zen-workspaces-list');
       const createWorkspaceElement = (workspace) => {
@@ -407,7 +404,6 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
               const targetWorkspaceId = element.getAttribute('zen-workspace-id');
               if (draggedWorkspaceId !== targetWorkspaceId) {
                 await this.moveWorkspace(draggedWorkspaceId, targetWorkspaceId);
-                await this._propagateWorkspaceData();
               }
               if (this.draggedElement) {
                 this.draggedElement.classList.remove('dragging');
@@ -522,7 +518,6 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
               if (this.isReorderModeOn(browser)) {
                 const draggedWorkspaceId = event.dataTransfer.getData('text/plain');
                 await this.moveWorkspaceToEnd(draggedWorkspaceId);
-                await this._propagateWorkspaceData();
 
                 if (this.draggedElement) {
                   this.draggedElement.classList.remove('dragging');
@@ -535,7 +530,9 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
         return element;
       };
 
-      browser.ZenWorkspaces._workspaceCache = null;
+      if(clearCache) {
+        browser.ZenWorkspaces._workspaceCache = null;
+      }
       let workspaces = await browser.ZenWorkspaces._workspaces();
       workspaceList.innerHTML = '';
       workspaceList.parentNode.style.display = 'flex';
@@ -574,6 +571,7 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
     workspaces.push(draggedWorkspace);
 
     await ZenWorkspacesStorage.updateWorkspacePositions(workspaces);
+    await this._propagateWorkspaceData();
   }
 
   isReorderModeOn(browser) {
@@ -611,6 +609,7 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
     workspaces.splice(targetIndex, 0, draggedWorkspace);
 
     await ZenWorkspacesStorage.updateWorkspacePositions(workspaces);
+    await this._propagateWorkspaceData();
   }
 
   async openWorkspacesDialog(event) {
@@ -621,6 +620,7 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
     let panel = document.getElementById('PanelUI-zen-workspaces');
     await this._propagateWorkspaceData({
       ignoreStrip: true,
+      clearCache: false
     });
     PanelMultiView.openPopup(panel, target, {
       position: 'bottomright topright',
@@ -814,7 +814,6 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
     let icon = document.querySelector('#PanelUI-zen-workspaces-icon-picker-wrapper [selected]');
     icon?.removeAttribute('selected');
     await this.createAndSaveWorkspace(workspaceName, false, icon?.label);
-    await this._propagateWorkspaceData();
     this.goToPreviousSubView();
   }
 
@@ -832,7 +831,6 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
     workspaceData.name = workspaceName;
     workspaceData.icon = icon?.label;
     await this.saveWorkspace(workspaceData);
-    await this._propagateWorkspaceData();
     this.goToPreviousSubView();
   }
 
@@ -916,7 +914,7 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
 
     document.getElementById('tabbrowser-tabs')._positionPinnedTabs();
 
-    await this._propagateWorkspaceData();
+    await this._propagateWorkspaceData({clearCache: false});
     this._inChangingWorkspace = false;
 
     for (let listener of this._changeListeners ?? []) {
@@ -1045,7 +1043,6 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
     let userContextId = parseInt(event.target.getAttribute('data-usercontextid'));
     workspace.containerTabId = userContextId;
     await this.saveWorkspace(workspace);
-    await this._propagateWorkspaceData();
   }
 
   onContextMenuClose() {
@@ -1060,7 +1057,6 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
 
   async setDefaultWorkspace() {
     await ZenWorkspacesStorage.setDefaultWorkspace(this._contextMenuId);
-    this._workspaceCache = null;
     await this._propagateWorkspaceData();
   }
 
@@ -1118,7 +1114,6 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
         delete this._lastSelectedWorkspaceTabs[previousWorkspaceID];
       }
     }
-    this._workspaceCache = null;
     const workspaces = await this._workspaces();
     await this.changeWorkspace(workspaces.workspaces.find((workspace) => workspace.uuid === workspaceID));
   }

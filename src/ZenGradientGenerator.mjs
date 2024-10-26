@@ -333,7 +333,7 @@
       }
       return `color-mix(in srgb, rgb(${color.c[0]}, ${color.c[1]}, ${color.c[2]}) ${this.currentOpacity * 100}%, var(--zen-themed-toolbar-bg) ${(1 - this.currentOpacity) * 100}%)`;
     }
-      
+
 
     getGradient(colors) {
       const themedColors = this.themedColors(colors);
@@ -350,7 +350,7 @@
         opacity,
         rotation,
         texture,
-      }
+      };
     }
 
     updateNoise(texture) {
@@ -358,22 +358,27 @@
       wrapper.style.setProperty('--zen-grainy-background-opacity', texture);
     }
 
-    async onWorkspaceChange(workspace, skipUpdate = false) {
+    async onWorkspaceChange(workspace, skipUpdate = false, theme = null) {
       const uuid = workspace.uuid;
-      const theme = await ZenWorkspacesStorage.getWorkspaceTheme(uuid);
-      const appWrapepr = document.getElementById('zen-main-app-wrapper');
+      // Use theme from workspace object or passed theme
+      const workspaceTheme = theme || workspace.theme;
+
+      const appWrapper = document.getElementById('zen-main-app-wrapper');
       if (!skipUpdate) {
-        appWrapepr.removeAttribute('animating');
-        appWrapepr.setAttribute('animating', 'true');
-        document.body.style.setProperty('--zen-main-browser-background-old', document.body.style.getPropertyValue('--zen-main-browser-background'));
+        appWrapper.removeAttribute('animating');
+        appWrapper.setAttribute('animating', 'true');
+        document.body.style.setProperty('--zen-main-browser-background-old',
+            document.body.style.getPropertyValue('--zen-main-browser-background')
+        );
         window.requestAnimationFrame(() => {
           setTimeout(() => {
-            appWrapepr.removeAttribute('animating');
+            appWrapper.removeAttribute('animating');
           }, 600);
         });
       }
+
       this.customColorList.innerHTML = '';
-      if (!theme || theme.type !== 'gradient') {
+      if (!workspaceTheme || workspaceTheme.type !== 'gradient') {
         document.body.style.removeProperty('--zen-main-browser-background');
         this.updateNoise(0);
         if (!skipUpdate) {
@@ -383,22 +388,27 @@
         }
         return;
       }
-      this.currentOpacity = theme.opacity || 0.5;
-      this.currentRotation = theme.rotation || 45;
-      this.currentTexture = theme.texture || 0;
+
+      this.currentOpacity = workspaceTheme.opacity || 0.5;
+      this.currentRotation = workspaceTheme.rotation || 45;
+      this.currentTexture = workspaceTheme.texture || 0;
+
       document.getElementById('PanelUI-zen-gradient-generator-opacity').value = this.currentOpacity;
       document.getElementById('PanelUI-zen-gradient-generator-texture').value = this.currentTexture;
       this.setRotationInput(this.currentRotation);
-      const gradient = this.getGradient(theme.gradientColors);
-      this.updateNoise(theme.texture);
-      for (const dot of theme.gradientColors) {
+
+      const gradient = this.getGradient(workspaceTheme.gradientColors);
+      this.updateNoise(workspaceTheme.texture);
+
+      for (const dot of workspaceTheme.gradientColors) {
         if (dot.isCustom) {
           this.addColorToCustomList(dot.c);
         }
       }
+
       document.body.style.setProperty('--zen-main-browser-background', gradient);
       if (!skipUpdate) {
-        this.recalculateDots(theme.gradientColors);
+        this.recalculateDots(workspaceTheme.gradientColors);
       }
     }
 
@@ -426,7 +436,8 @@
       }
     }
 
-    async updateCurrentWorkspace() {
+    async updateCurrentWorkspace(skipSave = true) {
+      this.updated = skipSave;
       const dots = this.panel.querySelectorAll('.zen-theme-picker-dot');
       const colors = Array.from(dots).map(dot => {
         const color = dot.style.getPropertyValue('--zen-theme-picker-dot-color');
@@ -437,9 +448,22 @@
         return {c: isCustom ? color : color.match(/\d+/g).map(Number), isCustom};
       });
       const gradient = this.getTheme(colors, this.currentOpacity, this.currentRotation, this.currentTexture);
-      const currentWorkspace = await ZenWorkspaces.getActiveWorkspace();
-      await ZenWorkspacesStorage.saveWorkspaceTheme(currentWorkspace.uuid, gradient);
-      this.onWorkspaceChange(currentWorkspace, true);
+      let currentWorkspace = await ZenWorkspaces.getActiveWorkspace();
+
+      if(!skipSave) {
+        await ZenWorkspacesStorage.saveWorkspaceTheme(currentWorkspace.uuid, gradient);
+        await ZenWorkspaces._propagateWorkspaceData();
+        currentWorkspace = await ZenWorkspaces.getActiveWorkspace();
+      }
+
+      await this.onWorkspaceChange(currentWorkspace, true, skipSave ? gradient : null);
+    }
+
+    async handlePanelClose() {
+      if(this.updated) {
+        await this.updateCurrentWorkspace(false);
+      }
+
     }
   }
 
