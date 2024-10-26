@@ -151,8 +151,8 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
       this._initializeWorkspaceCreationIcons();
       this._initializeWorkspaceTabContextMenus();
       window.addEventListener('TabBrowserInserted', this.onTabBrowserInserted.bind(this));
+      await SessionStore.promiseInitialized;
       let workspaces = await this._workspaces();
-      gZenThemePicker.init();
       if (workspaces.workspaces.length === 0) {
         await this.createAndSaveWorkspace('Default Workspace', true);
       } else {
@@ -165,8 +165,12 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
           activeWorkspace = workspaces.workspaces[0];
           this.activeWorkspace = activeWorkspace.uuid;
         }
-        await SessionStore.promiseInitialized;
         await this.changeWorkspace(activeWorkspace, true);
+      }
+      try {
+        window.gZenThemePicker = new ZenThemePicker();
+      } catch (e) {
+        console.error('ZenWorkspaces: Error initializing theme picker', e);
       }
     }
   }
@@ -915,12 +919,12 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
 
     document.getElementById('tabbrowser-tabs')._positionPinnedTabs();
 
-    await this._propagateWorkspaceData({clearCache: false});
-    this._inChangingWorkspace = false;
-
+    await this._propagateWorkspaceData({clearCache: onInit});
     for (let listener of this._changeListeners ?? []) {
       listener(window);
     }
+
+    this._inChangingWorkspace = false;
   }
 
   async _updateWorkspacesChangeContextMenu() {

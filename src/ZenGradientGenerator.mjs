@@ -10,7 +10,8 @@
 
     numberOfDots = 0;
 
-    init() {
+    constructor() {
+      super();
       if (!Services.prefs.getBoolPref('zen.theme.gradient', true) || !ZenWorkspaces.shouldHaveWorkspaces) {
         return;
       }
@@ -18,13 +19,15 @@
       ChromeUtils.defineLazyGetter(this, 'panel', () => document.getElementById('PanelUI-zen-gradient-generator'));
       ChromeUtils.defineLazyGetter(this, 'toolbox', () => document.getElementById('TabsToolbar'));
       ChromeUtils.defineLazyGetter(this, 'customColorInput', () => document.getElementById('PanelUI-zen-gradient-generator-custom-input'));
-      ChromeUtils.defineLazyGetter(this, 'customColorList', () => document.getElementById('PanelUI-zen-gradient-generator-custom-list'));
+      ChromeUtils.defineLazyGetter(this, 'customColorList', () => document.getElementById('PanelUI-zen-gradient-generator-custom-list'));    
 
       this.initRotation();
       this.initCanvas();
 
       ZenWorkspaces.addChangeListeners(this.onWorkspaceChange.bind(this));
       window.matchMedia('(prefers-color-scheme: dark)').addListener(this.onDarkModeChange.bind(this));
+      this._hasInitialized = true;
+      this.onDarkModeChange(null, true);
     }
 
     get isDarkMode() {
@@ -364,14 +367,20 @@
     async onWorkspaceChange(workspace, skipUpdate = false, theme = null) {
       const uuid = workspace.uuid;
       // Use theme from workspace object or passed theme
-      const workspaceTheme = theme || workspace.theme;
+      let workspaceTheme = theme || workspace.theme;
 
       await this.foreachWindowAsActive(async (browser) => {
-        // Do not rebuild if the workspace is not the same as the current one
-        const windowWorkspace = await browser.ZenWorkspaces.getActiveWorkspace();
-        if (windowWorkspace.uuid !== uuid) {
+        if (!browser.gZenThemePicker._hasInitialized) {
           return;
         }
+        // Do not rebuild if the workspace is not the same as the current one
+        const windowWorkspace = await browser.ZenWorkspaces.getActiveWorkspace();
+        if (windowWorkspace.uuid !== uuid && theme !== null) {
+          return;
+        }
+
+        // get the theme from the window
+        workspaceTheme = theme || windowWorkspace.theme;
 
         const appWrapper = browser.document.getElementById('zen-main-app-wrapper');
         if (!skipUpdate) {
@@ -383,11 +392,11 @@
           browser.window.requestAnimationFrame(() => {
             setTimeout(() => {
               appWrapper.removeAttribute('animating');
-            }, 600);
+            }, 500);
           });
         }
 
-        browser.gZenThemePicker.customColorList.innerHTML = '';
+        browser.gZenThemePicker.resetCustomColorList();
         if (!workspaceTheme || workspaceTheme.type !== 'gradient') {
           browser.document.body.style.removeProperty('--zen-main-browser-background');
           browser.gZenThemePicker.updateNoise(0);
@@ -423,6 +432,10 @@
           browser.gZenThemePicker.recalculateDots(workspaceTheme.gradientColors);
         }
       });
+    }
+
+    resetCustomColorList() {
+      this.customColorList.innerHTML = '';
     }
 
     removeCustomColor(event) {
@@ -480,5 +493,5 @@
     }
   }
 
-  window.gZenThemePicker = new ZenThemePicker();
+  window.ZenThemePicker = ZenThemePicker;
 }
