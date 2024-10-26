@@ -118,12 +118,14 @@ var ZenWorkspacesStorage = {
         // Insert or replace the workspace
         await db.executeCached(`
           INSERT OR REPLACE INTO zen_workspaces (
-          uuid, name, icon, is_default, container_id, created_at, updated_at, "position"
+          uuid, name, icon, is_default, container_id, created_at, updated_at, "position",
+          theme_type, theme_colors, theme_opacity, theme_rotation, theme_texture
         ) VALUES (
           :uuid, :name, :icon, :is_default, :container_id, 
           COALESCE((SELECT created_at FROM zen_workspaces WHERE uuid = :uuid), :now),
           :now,
-          :position
+          :position,
+          :theme_type, :theme_colors, :theme_opacity, :theme_rotation, :theme_texture
         )
         `, {
           uuid: workspace.uuid,
@@ -132,7 +134,12 @@ var ZenWorkspacesStorage = {
           is_default: workspace.default ? 1 : 0,
           container_id: workspace.containerTabId || null,
           now,
-          position: newPosition
+          position: newPosition,
+          theme_type: workspace.theme?.type || null,
+          theme_colors: workspace.theme ? JSON.stringify(workspace.theme.gradientColors) : null,
+          theme_opacity: workspace.theme?.opacity || null,
+          theme_rotation: workspace.theme?.rotation || null,
+          theme_texture: workspace.theme?.texture || null
         });
 
         // Record the change
@@ -197,10 +204,6 @@ var ZenWorkspacesStorage = {
         uuid,
         timestamp: Math.floor(now / 1000)
       });
-
-      await db.execute(`
-        DELETE FROM zen_workspace_themes WHERE uuid = :uuid
-      `, { uuid });
 
       await this.updateLastChangeTimestamp(db);
     });
