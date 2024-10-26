@@ -350,7 +350,7 @@
         opacity,
         rotation,
         texture,
-      }
+      };
     }
 
     updateNoise(texture) {
@@ -358,9 +358,12 @@
       wrapper.style.setProperty('--zen-grainy-background-opacity', texture);
     }
 
-    async onWorkspaceChange(workspace, skipUpdate = false) {
+    async onWorkspaceChange(workspace, skipUpdate = false, theme = null) {
       const uuid = workspace.uuid;
-      const theme = await ZenWorkspacesStorage.getWorkspaceTheme(uuid);
+
+      if(!theme) {
+        theme = await ZenWorkspacesStorage.getWorkspaceTheme(uuid);
+      }
       const appWrapepr = document.getElementById('zen-main-app-wrapper');
       if (!skipUpdate) {
         appWrapepr.removeAttribute('animating');
@@ -426,7 +429,8 @@
       }
     }
 
-    async updateCurrentWorkspace() {
+    async updateCurrentWorkspace(skipSave = true) {
+      this.updated = skipSave;
       const dots = this.panel.querySelectorAll('.zen-theme-picker-dot');
       const colors = Array.from(dots).map(dot => {
         const color = dot.style.getPropertyValue('--zen-theme-picker-dot-color');
@@ -437,9 +441,19 @@
         return {c: isCustom ? color : color.match(/\d+/g).map(Number), isCustom};
       });
       const gradient = this.getTheme(colors, this.currentOpacity, this.currentRotation, this.currentTexture);
+
       const currentWorkspace = await ZenWorkspaces.getActiveWorkspace();
-      await ZenWorkspacesStorage.saveWorkspaceTheme(currentWorkspace.uuid, gradient);
-      this.onWorkspaceChange(currentWorkspace, true);
+      if(!skipSave) {
+        await ZenWorkspacesStorage.saveWorkspaceTheme(currentWorkspace.uuid, gradient);
+      }
+      await this.onWorkspaceChange(currentWorkspace, true,skipSave ? gradient : null);
+    }
+
+    async handlePanelClose() {
+      if(this.updated) {
+        await this.updateCurrentWorkspace(false);
+      }
+
     }
   }
 
