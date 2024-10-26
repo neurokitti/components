@@ -599,7 +599,7 @@ class ZenViewSplitter extends ZenDOMOperatedFeature {
    * Splits a link in a new tab.
    */
   splitLinkInNewTab() {
-    const url = window.gContextMenu.linkURL || window.gContextMenu.target.ownerDocument.location.href;
+    const url = window.gContextMenu.linkURL || window.gContextMenu.mediaURL || window.gContextMenu.contentData.docLocation || window.gContextMenu.target.ownerDocument.location.href;
     const currentTab = window.gBrowser.selectedTab;
     const newTab = this.openAndSwitchToTab(url);
     this.splitTabs([currentTab, newTab]);
