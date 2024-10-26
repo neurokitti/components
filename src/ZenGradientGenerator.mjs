@@ -9,8 +9,14 @@
     currentRotation = 45;
 
     init() {
+      if (!Services.prefs.getBoolPref('zen.theme.gradient', true)) {
+        return;
+      }
+
       ChromeUtils.defineLazyGetter(this, 'panel', () => document.getElementById('PanelUI-zen-gradient-generator'));
       ChromeUtils.defineLazyGetter(this, 'toolbox', () => document.getElementById('TabsToolbar'));
+      ChromeUtils.defineLazyGetter(this, 'customColorInput', () => document.getElementById('PanelUI-zen-gradient-generator-custom-input'));
+      ChromeUtils.defineLazyGetter(this, 'customColorList', () => document.getElementById('PanelUI-zen-gradient-generator-custom-list'));
 
       this.initRotation();
       this.initCanvas();
@@ -92,7 +98,7 @@
     onRotationMouseDown(event) {
       event.preventDefault();
       this.rotationDragging = true;
-      this.rotationInputDot.style.zIndex = 1;
+      this.rotationInputDot.style.zIndex = 2;
       this.rotationInputDot.classList.add('dragging');
       document.addEventListener('mousemove', this.onRotationMouseMove.bind(this));
       document.addEventListener('mouseup', this.onRotationMouseUp.bind(this));
@@ -100,7 +106,7 @@
 
     onRotationMouseUp(event) {
       this.rotationDragging = false;
-      this.rotationInputDot.style.zIndex = 0;
+      this.rotationInputDot.style.zIndex = 1;
       this.rotationInputDot.classList.remove('dragging');
       document.removeEventListener('mousemove', this.onRotationMouseMove.bind(this));
       document.removeEventListener('mouseup', this.onRotationMouseUp.bind(this));
@@ -149,7 +155,7 @@
     }
 
     calculateInitialPosition(color) {
-      const [r, g, b] = color;
+      const [r, g, b] = color.c;
       const imageData = this.canvasCtx.getImageData(0, 0, this.canvas.width, this.canvas.height);
       const pixels = imageData.data;
       let x = 0;
@@ -176,14 +182,26 @@
     }
 
     createDot(color, fromWorkspace = false) {
-      const [r, g, b] = color;
+      if (color.isCustom) {
+        this.addColorToCustomList(color.c);
+      }
+      const [r, g, b] = color.c;
       const dot = document.createElement('div');
       dot.classList.add('zen-theme-picker-dot');
-      dot.style.setProperty('--zen-theme-picker-dot-color', `rgb(${r}, ${g}, ${b})`);
-      const { x, y } = this.calculateInitialPosition(color);
-      dot.style.left = `${x * 100}%`;
-      dot.style.top = `${y * 100}%`;
-      dot.addEventListener('mousedown', this.onDotMouseDown.bind(this));
+      if (color.isCustom) {
+        if (!color.c) {
+          return;
+        }
+        dot.classList.add('custom');
+        dot.style.opacity = 0;
+        dot.style.setProperty('--zen-theme-picker-dot-color', color.c);
+      } else {
+        dot.style.setProperty('--zen-theme-picker-dot-color', `rgb(${r}, ${g}, ${b})`);
+        const { x, y } = this.calculateInitialPosition(color);
+        dot.style.left = `${x * 100}%`;
+        dot.style.top = `${y * 100}%`;
+        dot.addEventListener('mousedown', this.onDotMouseDown.bind(this));
+      }
       this.panel.querySelector('.zen-theme-picker-gradient').appendChild(dot);
       if (!fromWorkspace) {
         this.onDarkModeChange(null, true);
@@ -231,9 +249,38 @@
       }
     }
 
+    addColorToCustomList(color) {
+      const listItems = window.MozXULElement.parseXULToFragment(`
+        <hbox class="zen-theme-picker-custom-list-item">
+          <html:div class="zen-theme-picker-dot-custom"></html:div>
+          <label class="zen-theme-picker-custom-list-item-label"></label>
+          <toolbarbutton class="zen-theme-picker-custom-list-item-remove toolbarbutton-1" oncommand="gZenThemePicker.removeCustomColor(event);"></toolbarbutton>
+        </hbox>
+      `);
+      listItems.querySelector('.zen-theme-picker-custom-list-item').setAttribute('data-color', color);
+      listItems.querySelector('.zen-theme-picker-dot-custom').style.setProperty('--zen-theme-picker-dot-color', color);
+      listItems.querySelector('.zen-theme-picker-custom-list-item-label').textContent = color;
+      this.customColorList.appendChild(listItems);
+    }
+
+    async addCustomColor() {
+      const color = this.customColorInput.value;
+      if (!color) {
+        return;
+      }
+      // can be any color format, we just add it to the list as a dot, but hidden
+      const dot = document.createElement('div');
+      dot.classList.add('zen-theme-picker-dot', 'hidden', 'custom');
+      dot.style.opacity = 0;
+      dot.style.setProperty('--zen-theme-picker-dot-color', color);
+      this.panel.querySelector('.zen-theme-picker-gradient').appendChild(dot);
+      this.customColorInput.value = '';
+      await this.updateCurrentWorkspace();
+    }
+
     onDotMouseUp(event) {
       if (event.button === 2) {
-        if (this.numberOfDots <= 2 || !event.target.classList.contains('zen-theme-picker-dot')
+        if (this.numberOfDots < 2 || !event.target.classList.contains('zen-theme-picker-dot')
             || this.numberOfDots === 1) {
           return;
         }
@@ -244,14 +291,14 @@
       if (this.dragging) {
         event.preventDefault();
         this.dragging = false;
-        this.draggedDot.style.zIndex = 0;
+        this.draggedDot.style.zIndex = 1;
         this.draggedDot.classList.remove('dragging');
         this.draggedDot = null;
         return;
       }
       this.numberOfDots = this.panel.querySelectorAll('.zen-theme-picker-dot').length;
       if (this.numberOfDots < ZenThemePicker.MAX_DOTS) {
-        this.createDot([Math.random() * 255, Math.random() * 255, Math.random() * 255]);
+        this.createDot({c:[Math.random() * 255, Math.random() * 255, Math.random() * 255]});
       }
     }
 
@@ -259,11 +306,14 @@
       const isDarkMode = this.isDarkMode;
       const factor = isDarkMode ? 0.5 : 1.1;
       return colors.map(color => {
-        return [
-          Math.min(255, color[0] * factor),
-          Math.min(255, color[1] * factor),
-          Math.min(255, color[2] * factor),
-        ]
+        return {
+          c: color.isCustom ? color.c : [
+            Math.min(255, color.c[0] * factor),
+            Math.min(255, color.c[1] * factor),
+            Math.min(255, color.c[2] * factor),
+          ],
+          isCustom: color.isCustom,
+        }
       });
     }
 
@@ -272,9 +322,18 @@
       this.updateCurrentWorkspace();
     }
 
-    getSingleRGBColor(color) {
-      return `color-mix(in srgb, rgb(${color[0]}, ${color[1]}, ${color[2]}) ${this.currentOpacity * 100}%, var(--zen-themed-toolbar-bg) ${(1 - this.currentOpacity) * 100}%)`;
+    onTextureChange(event) {
+      this.currentTexture = event.target.value;
+      this.updateCurrentWorkspace();
     }
+
+    getSingleRGBColor(color) {
+      if (color.isCustom) {
+        return color.c;
+      }
+      return `color-mix(in srgb, rgb(${color.c[0]}, ${color.c[1]}, ${color.c[2]}) ${this.currentOpacity * 100}%, var(--zen-themed-toolbar-bg) ${(1 - this.currentOpacity) * 100}%)`;
+    }
+      
 
     getGradient(colors) {
       const themedColors = this.themedColors(colors);
@@ -284,13 +343,19 @@
       return `linear-gradient(${this.currentRotation}deg, ${themedColors.map(color => this.getSingleRGBColor(color)).join(', ')})`;
     }
 
-    getTheme(colors, opacity = 0.5, rotation = 45) {
+    getTheme(colors, opacity = 0.5, rotation = 45, texture = 0) {
       return {
         type: 'gradient',
-        gradientColors: colors,
+        gradientColors: colors.filter(color => color), // remove undefined
         opacity,
         rotation,
+        texture,
       }
+    }
+
+    updateNoise(texture) {
+      const wrapper = document.getElementById('zen-main-app-wrapper');
+      wrapper.style.setProperty('--zen-grainy-background-opacity', texture);
     }
 
     async onWorkspaceChange(workspace, skipUpdate = false) {
@@ -305,19 +370,48 @@
           appWrapepr.removeAttribute('animating');
         }, 1000);
       }
+      this.customColorList.innerHTML = '';
       if (!theme || theme.type !== 'gradient') {
         document.body.style.removeProperty('--zen-main-browser-background');
+        this.updateNoise(0);
+        if (!skipUpdate) {
+          for (const dot of this.panel.querySelectorAll('.zen-theme-picker-dot')) {
+            dot.remove();
+          }
+        }
         return;
       }
       this.currentOpacity = theme.opacity || 0.5;
       this.currentRotation = theme.rotation || 45;
+      this.currentTexture = theme.texture || 0;
       document.getElementById('PanelUI-zen-gradient-generator-opacity').value = this.currentOpacity;
+      document.getElementById('PanelUI-zen-gradient-generator-texture').value = this.currentTexture;
       this.setRotationInput(this.currentRotation);
       const gradient = this.getGradient(theme.gradientColors);
+      this.updateNoise(theme.texture);
+      for (const dot of theme.gradientColors) {
+        if (dot.isCustom) {
+          this.addColorToCustomList(dot.c);
+        }
+      }
       document.body.style.setProperty('--zen-main-browser-background', gradient);
       if (!skipUpdate) {
         this.recalculateDots(theme.gradientColors);
       }
+    }
+
+    removeCustomColor(event) {
+      const target = event.target.closest('.zen-theme-picker-custom-list-item');
+      const color = target.getAttribute('data-color');
+      const dots = this.panel.querySelectorAll('.zen-theme-picker-dot');
+      for (const dot of dots) {
+        if (dot.style.getPropertyValue('--zen-theme-picker-dot-color') === color) {
+          dot.remove();
+          break;
+        }
+      }
+      target.remove();
+      this.updateCurrentWorkspace();
     }
 
     recalculateDots(colors) {
@@ -334,9 +428,13 @@
       const dots = this.panel.querySelectorAll('.zen-theme-picker-dot');
       const colors = Array.from(dots).map(dot => {
         const color = dot.style.getPropertyValue('--zen-theme-picker-dot-color');
-        return color.match(/\d+/g).map(Number);
+        if (color === 'undefined') {
+          return;
+        }
+        const isCustom = dot.classList.contains('custom');
+        return {c: isCustom ? color : color.match(/\d+/g).map(Number), isCustom};
       });
-      const gradient = this.getTheme(colors, this.currentOpacity, this.currentRotation);
+      const gradient = this.getTheme(colors, this.currentOpacity, this.currentRotation, this.currentTexture);
       const currentWorkspace = await ZenWorkspaces.getActiveWorkspace();
       await ZenWorkspacesStorage.saveWorkspaceTheme(currentWorkspace.uuid, gradient);
       this.onWorkspaceChange(currentWorkspace, true);
