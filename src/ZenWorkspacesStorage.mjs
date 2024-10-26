@@ -21,6 +21,26 @@ var ZenWorkspacesStorage = {
         )
       `);
 
+      // Add new columns if they don't exist
+      // SQLite doesn't have a direct "ADD COLUMN IF NOT EXISTS" syntax,
+      // so we need to check if the columns exist first
+      const columns = await db.execute(`PRAGMA table_info(zen_workspaces)`);
+      const columnNames = columns.map(row => row.getResultByName('name'));
+
+      // Helper function to add column if it doesn't exist
+      const addColumnIfNotExists = async (columnName, definition) => {
+        if (!columnNames.includes(columnName)) {
+          await db.execute(`ALTER TABLE zen_workspaces ADD COLUMN ${columnName} ${definition}`);
+        }
+      };
+
+      // Add each new column if it doesn't exist
+      await addColumnIfNotExists('theme_type', 'TEXT');
+      await addColumnIfNotExists('theme_colors', 'TEXT');
+      await addColumnIfNotExists('theme_opacity', 'REAL');
+      await addColumnIfNotExists('theme_rotation', 'INTEGER');
+      await addColumnIfNotExists('theme_texture', 'REAL');
+
       // Create an index on the uuid column
       await db.execute(`
         CREATE INDEX IF NOT EXISTS idx_zen_workspaces_uuid ON zen_workspaces(uuid)
@@ -37,14 +57,6 @@ var ZenWorkspacesStorage = {
       // Create an index on the uuid column for changes tracking table
       await db.execute(`
         CREATE INDEX IF NOT EXISTS idx_zen_workspaces_changes_uuid ON zen_workspaces_changes(uuid)
-      `);
-
-      // Create a workspace theme table if it doesn't exist, theme can be null
-      await db.execute(`
-        CREATE TABLE IF NOT EXISTS zen_workspace_themes (
-          uuid TEXT PRIMARY KEY,
-          json TEXT
-        )
       `);
     });
   },
@@ -252,20 +264,56 @@ var ZenWorkspacesStorage = {
   },
 
   async saveWorkspaceTheme(uuid, theme) {
-    await PlacesUtils.withConnectionWrapper('ZenWorkspacesStorage.saveWorkspaceTheme', async (db) => {
+    await PlacesUtils.withConnectionWrapper('saveWorkspaceTheme', async (db) => {
       await db.execute(`
-        INSERT OR REPLACE INTO zen_workspace_themes (uuid, json)
-        VALUES (:uuid, :json)
-      `, { uuid, json: JSON.stringify(theme) });
+        UPDATE zen_workspaces
+        SET
+          theme_type = :type,
+          theme_colors = :colors,
+          theme_opacity = :opacity,
+          theme_rotation = :rotation,
+          theme_texture = :texture,
+          updated_at = :now
+        WHERE uuid = :uuid
+      `, {
+        type: theme.type,
+        colors: JSON.stringify(theme.gradientColors),
+        opacity: theme.opacity,
+        rotation: theme.rotation,
+        texture: theme.texture,
+        now: Date.now(),
+        uuid
+      });
+
+      await this.markChanged(uuid);
+      await this.updateLastChangeTimestamp(db);
     });
   },
 
   async getWorkspaceTheme(uuid) {
     const db = await PlacesUtils.promiseDBConnection();
     const result = await db.executeCached(`
-      SELECT json FROM zen_workspace_themes WHERE uuid = :uuid
+      SELECT
+        theme_type,
+        theme_colors,
+        theme_opacity,
+        theme_rotation,
+        theme_texture
+      FROM zen_workspaces
+      WHERE uuid = :uuid
     `, { uuid });
-    return result.length ? JSON.parse(result[0].getResultByName('json')) : null;
+
+    if (!result.length || !result[0].getResultByName('theme_type')) {
+      return null;
+    }
+
+    return {
+      type: result[0].getResultByName('theme_type'),
+      gradientColors: JSON.parse(result[0].getResultByName('theme_colors')),
+      opacity: result[0].getResultByName('theme_opacity'),
+      rotation: result[0].getResultByName('theme_rotation'),
+      texture: result[0].getResultByName('theme_texture')
+    };
   },
 
   async getChangedIDs() {
