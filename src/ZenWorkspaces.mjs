@@ -65,6 +65,9 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
           lastChangeTimestamp > this._workspaceCache.lastChangeTimestamp
         ) {
           await this._propagateWorkspaceData();
+
+          const currentWorkspace = await this.getActiveWorkspace();
+          await gZenThemePicker.onWorkspaceChange(currentWorkspace);
         }
       } catch (error) {
         console.error('Error updating workspaces after sync:', error);
