@@ -490,6 +490,7 @@
       if(!skipSave) {
         await ZenWorkspacesStorage.saveWorkspaceTheme(currentWorkspace.uuid, gradient);
         await ZenWorkspaces._propagateWorkspaceData();
+        ConfirmationHint.show(document.getElementById("PanelUI-menu-button"), "zen-panel-ui-gradient-generator-saved-message");
         currentWorkspace = await ZenWorkspaces.getActiveWorkspace();
       }
 
