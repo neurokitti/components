@@ -219,7 +219,7 @@
       }
       this.panel.querySelector('.zen-theme-picker-gradient').appendChild(dot);
       if (!fromWorkspace) {
-        this.onDarkModeChange(null, true);
+        this.updateCurrentWorkspace(true);
       }
     }
 
@@ -295,7 +295,7 @@
 
     onDotMouseUp(event) {
       if (event.button === 2) {
-        if (this.numberOfDots < 2 || !event.target.classList.contains('zen-theme-picker-dot')) {
+        if (!event.target.classList.contains('zen-theme-picker-dot')) {
           return;
         }
         event.target.remove();
@@ -352,7 +352,9 @@
 
     getGradient(colors) {
       const themedColors = this.themedColors(colors);
-      if (themedColors.length === 1) {
+      if (themedColors.length === 0) {
+        return "var(--zen-themed-toolbar-bg)";
+      } else if (themedColors.length === 1) {
         return this.getSingleRGBColor(themedColors[0]);
       }
       return `linear-gradient(${this.currentRotation}deg, ${themedColors.map(color => this.getSingleRGBColor(color)).join(', ')})`;
@@ -417,9 +419,9 @@
           return;
         }
 
-        browser.gZenThemePicker.currentOpacity = workspaceTheme.opacity || 0.5;
-        browser.gZenThemePicker.currentRotation = workspaceTheme.rotation || 45;
-        browser.gZenThemePicker.currentTexture = workspaceTheme.texture || 0;
+        browser.gZenThemePicker.currentOpacity = workspaceTheme.opacity ?? 0.5;
+        browser.gZenThemePicker.currentRotation = workspaceTheme.rotation ?? 45;
+        browser.gZenThemePicker.currentTexture = workspaceTheme.texture ?? 0;
 
         browser.gZenThemePicker.numberOfDots = workspaceTheme.gradientColors.length;
 
