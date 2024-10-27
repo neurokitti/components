@@ -313,7 +313,7 @@
       }
       this.numberOfDots = this.panel.querySelectorAll('.zen-theme-picker-dot').length;
       if (this.numberOfDots < ZenThemePicker.MAX_DOTS) {
-        this.createDot({c:[Math.random() * 255, Math.random() * 255, Math.random() * 255]});
+        this.createDot({c:[255, 255, 255]}); // right in the center!
       }
     }
 
