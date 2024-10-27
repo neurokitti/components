@@ -26,8 +26,6 @@
 
       ZenWorkspaces.addChangeListeners(this.onWorkspaceChange.bind(this));
       window.matchMedia('(prefers-color-scheme: dark)').addListener(this.onDarkModeChange.bind(this));
-      this._hasInitialized = true;
-      this.onDarkModeChange(null, true);
     }
 
     get isDarkMode() {
@@ -83,6 +81,9 @@
       // Call the rest of the initialization
       this.initContextMenu();
       this.initThemePicker();
+
+      this._hasInitialized = true;
+      this.onDarkModeChange(null);
     }
 
     initRotation() {
@@ -163,22 +164,30 @@
     calculateInitialPosition(color) {
       const [r, g, b] = color.c;
       const imageData = this.canvasCtx.getImageData(0, 0, this.canvas.width, this.canvas.height);
-      const pixels = imageData.data;
-      let x = 0;
-      let y = 0;
-      let minDistance = Infinity;
-      for (let i = 0; i < pixels.length; i += 4) {
-        const r2 = pixels[i];
-        const g2 = pixels[i + 1];
-        const b2 = pixels[i + 2];
-        const distance = Math.sqrt((r - r2) ** 2 + (g - g2) ** 2 + (b - b2) ** 2);
-        if (distance < minDistance) {
-          minDistance = distance;
-          x = (i / 4) % this.canvas.width;
-          y = Math.floor((i / 4) / this.canvas.width);
+      // Find all pixels that are at least 90% similar to the color
+      const similarPixels = [];
+      for (let i = 0; i < imageData.data.length; i += 4) {
+        const pixelR = imageData.data[i];
+        const pixelG = imageData.data[i + 1];
+        const pixelB = imageData.data[i + 2];
+        if (Math.abs(r - pixelR) < 25 && Math.abs(g - pixelG) < 25 && Math.abs(b - pixelB) < 25) {
+          similarPixels.push(i);
         }
       }
-      return { x: x / this.canvas.width, y: y / this.canvas.height };
+      // Check if there's an exact match
+      for (const pixel of similarPixels) {
+        const x = (pixel / 4) % this.canvas.width;
+        const y = Math.floor((pixel / 4) / this.canvas.width);
+        const pixelColor = this.getColorFromPosition(x, y);
+        if (pixelColor[0] === r && pixelColor[1] === g && pixelColor[2] === b) {
+          return {x: x / this.canvas.width, y: y / this.canvas.height};
+        }
+      }
+      // If there's no exact match, return the first similar pixel
+      const pixel = similarPixels[0];
+      const x = (pixel / 4) % this.canvas.width;
+      const y = Math.floor((pixel / 4) / this.canvas.width);
+      return {x: x / this.canvas.width, y: y / this.canvas.height};
     }
 
     getColorFromPosition(x, y) {
