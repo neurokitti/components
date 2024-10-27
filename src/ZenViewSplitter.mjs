@@ -227,8 +227,6 @@ class ZenViewSplitter extends ZenDOMOperatedFeature {
       this._thumnailCanvas.height = 140 * devicePixelRatio;
     }
 
-    this.toggleWrapperDisplay(true);
-
     const browsers = this._data[this.currentView].tabs.map(t => t.linkedBrowser);
     browsers.forEach(b => {
       b.style.pointerEvents = 'none';
@@ -256,8 +254,6 @@ class ZenViewSplitter extends ZenDOMOperatedFeature {
     if (!this.rearrangeViewEnabled || (event && event.target.classList.contains('zen-split-view-splitter'))) {
       return;
     }
-
-    this.toggleWrapperDisplay(false);
 
     this.tabBrowserPanel.removeEventListener('dragstart', this.onBrowserDragStart);
     this.tabBrowserPanel.removeEventListener('dragover', this.onBrowserDragOver);
@@ -728,6 +724,7 @@ class ZenViewSplitter extends ZenDOMOperatedFeature {
     this.setTabsDocShellState(this._data[this.currentView].tabs, false);
     this.updateSplitViewButton(true);
     this.currentView = -1;
+    this.toggleWrapperDisplay(false);
   }
 
   /**
@@ -753,6 +750,7 @@ class ZenViewSplitter extends ZenDOMOperatedFeature {
     this.updateSplitViewButton(false);
     this.applyGridToTabs(splitData.tabs);
     this.applyGridLayout(splitData.layoutTree);
+    this.toggleWrapperDisplay(true);
   }
 
   calculateLayoutTree(tabs, gridType) {
