@@ -55,8 +55,15 @@ export class ZenGlanceChild extends JSWindowActorChild {
     return !(event.ctrlKey ^ event.altKey ^ event.shiftKey);
   }
 
-  openGlance(url) {
-    this.sendAsyncMessage('ZenGlance:OpenGlance', { url });
+  openGlance(target) {
+    const rect = target.getBoundingClientRect();
+    this.sendAsyncMessage('ZenGlance:OpenGlance', { 
+      url: target.href,
+      x: rect.left,
+      y: rect.top,
+      width: rect.width,
+      height: rect.height,
+    });
   }
 
   handleMouseUp(event) {
@@ -71,7 +78,7 @@ export class ZenGlanceChild extends JSWindowActorChild {
     const hoverActivationDelay = await this.getHoverActivationDelay();
     setTimeout(() => {
       if (this.mouseIsDown) {
-        this.openGlance(event.target.href);
+        this.openGlance(event.target);
       }
     }, hoverActivationDelay);
   }
@@ -96,7 +103,7 @@ export class ZenGlanceChild extends JSWindowActorChild {
       event.preventDefault();
       event.stopPropagation();
       
-      this.openGlance(target.href);
+      this.openGlance(target);
     }
   }
 }

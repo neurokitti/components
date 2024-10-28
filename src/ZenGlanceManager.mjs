@@ -21,10 +21,15 @@
     }
 
     observe(subject, topic, data) {
-      this.openGlance(data);
+      this.openGlance(JSON.parse(data));
     }
 
-    openGlance(url) {
+    openGlance(data) {
+      const initialX = data.x;
+      const initialY = data.y;
+      const initialWidth = data.width;
+      const initialHeight = data.height;
+      const url = data.url;
       if (this.#currentBrowser) {
         return;
       }
@@ -33,6 +38,11 @@
       overlayWrapper.appendChild(this.overlay);
 
       window.requestAnimationFrame(() => {
+        this.browserWrapper.style.setProperty("--initial-x", `${initialX}px`);
+        this.browserWrapper.style.setProperty("--initial-y", `${initialY}px`);
+        this.browserWrapper.style.setProperty("--initial-width", initialWidth + "px");
+        this.browserWrapper.style.setProperty("--initial-height", initialHeight + "px");
+        this.overlay.removeAttribute("fade-out");
         this.overlay.removeAttribute("hidden");
       });
     }
@@ -41,7 +51,13 @@
       this.#currentBrowser?.remove();
       this.#currentBrowser = null;
 
-      this.overlay.setAttribute("hidden", true);
+      window.requestAnimationFrame(() => {
+        this.overlay.setAttribute("fade-out", true);
+        setTimeout(() => {
+          this.overlay.setAttribute("hidden", true);
+          this.overlay.removeAttribute("fade-out");
+        }, 800);
+      });
     }
 
     onLocationChange(_) {
