@@ -178,7 +178,6 @@ export class ZenThemeMarketplaceParent extends JSWindowActorParent {
 
   async removeTheme(themeId, triggerUpdate = true) {
     const themePath = PathUtils.join(this.themesRootPath, themeId);
-    console.info('ZenThemeMarketplaceParent: Removing theme ', themePath);
     await IOUtils.remove(themePath, { recursive: true, ignoreAbsent: true });
     if (triggerUpdate) {
       this.triggerThemeUpdate();
