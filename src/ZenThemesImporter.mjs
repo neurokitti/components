@@ -304,3 +304,17 @@ var gZenThemesImporter = new (class {
     await gZenStylesheetManager.writeStylesheet(this.styleSheetPath, themes);
   }
 })();
+
+gZenActorsManager.addJSWindowActor("ZenThemeMarketplace", {
+  parent: {
+    esModuleURI: "chrome://browser/content/zen-components/actors/ZenThemeMarketplaceParent.sys.mjs",
+  },
+  child: {
+    esModuleURI: "chrome://browser/content/zen-components/actors/ZenThemeMarketplaceChild.sys.mjs",
+    events: {
+      DOMContentLoaded: {},
+    },
+  },
+  matches: ["https://*.zen-browser.app/*", "about:preferences"],
+  allFrames: true,
+});
