@@ -52,7 +52,7 @@ export class ZenGlanceChild extends JSWindowActorChild {
   }
 
   ensureOnlyKeyModifiers(event) {
-    return !(event.ctrlKey ^ event.altKey ^ event.shiftKey);
+    return !(event.ctrlKey ^ event.altKey ^ event.shiftKey ^ event.metaKey);
   }
 
   openGlance(target) {
@@ -102,7 +102,9 @@ export class ZenGlanceChild extends JSWindowActorChild {
       return;
     } else if (activationMethod === 'shift' && !event.shiftKey) {
       return;
-    } else if (activationMethod === 'mantain' || typeof activationMethod === 'undefined') {
+    } else if (activationMethod === 'meta' && !event.metaKey) {
+      return;
+    }else if (activationMethod === 'mantain' || typeof activationMethod === 'undefined') {
       return;
     }
     // get closest A element
