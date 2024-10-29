@@ -70,10 +70,12 @@
       console.log(url);
       const newTabOptions = {
         userContextId: currentTab.getAttribute("usercontextid") || "",
-        inBackground: false,
+        inBackground: true,
+        skipLoading: true,
         insertTab: false,
       };
       const newTab = gBrowser.addTrustedTab(url, newTabOptions);
+      document.getElementById("zen-glance-tabs").appendChild(newTab);
       this.#currentBrowser = newTab.linkedBrowser;
       this.#currentTab = newTab;
       return this.#currentBrowser;
@@ -147,7 +149,7 @@
             this.#currentTab?.remove();
             this.#currentBrowser = null;
             this.#currentTab = null;
-          }, 300);
+          }, 500);
         });
       });  
     }
