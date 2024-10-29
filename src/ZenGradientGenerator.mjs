@@ -439,7 +439,7 @@
         }
       }
       const result = this.pSBC(
-        this.isDarkMode ? 0.7 : -0.7, 
+        this.isDarkMode ? 0.5 : -0.5, 
         `rgb(${dominantColor[0]}, ${dominantColor[1]}, ${dominantColor[2]})`);
       return result?.match(/\d+/g).map(Number);
     }
@@ -478,13 +478,14 @@
 
         browser.gZenThemePicker.resetCustomColorList();
         if (!workspaceTheme || workspaceTheme.type !== 'gradient') {
-          browser.document.body.style.removeProperty('--zen-main-browser-background');
+          browser.document.documentElement.style.removeProperty('--zen-main-browser-background');
           browser.gZenThemePicker.updateNoise(0);
           if (!skipUpdate) {
             for (const dot of browser.gZenThemePicker.panel.querySelectorAll('.zen-theme-picker-dot')) {
               dot.remove();
             }
           }
+          browser.document.documentElement.style.setProperty('--zen-primary-color', this.getNativeAccentColor());
           return;
         }
 
@@ -518,6 +519,10 @@
           browser.gZenThemePicker.recalculateDots(workspaceTheme.gradientColors);
         }
       });
+    }
+
+    getNativeAccentColor() {
+      return Services.prefs.getStringPref('zen.theme.accent-color');
     }
 
     resetCustomColorList() {
