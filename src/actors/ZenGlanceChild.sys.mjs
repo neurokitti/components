@@ -38,7 +38,7 @@ export class ZenGlanceChild extends JSWindowActorChild {
   async initiateGlance() {
     this.mouseIsDown = false;
     const activationMethod = await this.getActivationMethod();
-    if (activationMethod === 'hover') {
+    if (activationMethod === 'mantain') {
       this.contentWindow.addEventListener('mousedown', this.mouseDownListener);
       this.contentWindow.addEventListener('mouseup', this.mouseUpListener);
 
@@ -67,18 +67,26 @@ export class ZenGlanceChild extends JSWindowActorChild {
   }
 
   handleMouseUp(event) {
-    this.mouseIsDown = false;
+    if (this.hasClicked) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.hasClicked = false;
+    }
+    this.mouseIsDown = null;
   }
 
   async handleMouseDown(event) {
-    if (event.target.tagName !== 'A') {
+    const target = event.target.closest('A');
+    console.log('target', target);
+    if (!target) {
       return;
     }
-    this.mouseIsDown = true;
+    this.mouseIsDown = target;
     const hoverActivationDelay = await this.getHoverActivationDelay();
-    setTimeout(() => {
-      if (this.mouseIsDown) {
-        this.openGlance(event.target);
+    this.contentWindow.setTimeout(() => {
+      if (this.mouseIsDown === target) {
+        this.hasClicked = true;
+        this.openGlance(target);
       }
     }, hoverActivationDelay);
   }
@@ -94,7 +102,7 @@ export class ZenGlanceChild extends JSWindowActorChild {
       return;
     } else if (activationMethod === 'shift' && !event.shiftKey) {
       return;
-    } else if (activationMethod === 'hover' || typeof activationMethod === 'undefined') {
+    } else if (activationMethod === 'mantain' || typeof activationMethod === 'undefined') {
       return;
     }
     // get closest A element
