@@ -9,7 +9,11 @@ var gZenActorsManager = {
       return;
     }
 
-    ChromeUtils.registerWindowActor(...args);
-    this._actors.add(args[0]);
+    try {
+      ChromeUtils.registerWindowActor(...args);
+      this._actors.add(args[0]);
+    } catch (e) {
+      console.warn(`Failed to register JSWindowActor: ${e}`);
+    }
   },
 }
