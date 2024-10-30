@@ -86,6 +86,10 @@
     }
 
     openGlance(data) {
+      if (this.#currentBrowser) {
+        return;
+      }
+
       const initialX = data.x;
       const initialY = data.y;
       const initialWidth = data.width;
@@ -97,9 +101,6 @@
       this.browserWrapper.removeAttribute("animate-full-end");
 
       const url = data.url;
-      if (this.#currentBrowser) {
-        return;
-      }
       const currentTab = gBrowser.selectedTab;
       const overlayWrapper = document.getElementById("tabbrowser-tabbox");
       overlayWrapper.prepend(this.overlay);
