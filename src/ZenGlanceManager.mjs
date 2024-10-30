@@ -136,7 +136,7 @@
     }
 
     closeGlance({ noAnimation = false } = {}) {
-      if (this.#animating) {
+      if (this.#animating || !this.#currentBrowser) {
         return;
       }
 

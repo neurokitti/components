@@ -270,6 +270,22 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
 
   openSaveDialog() {
     let parentPanel = document.getElementById('PanelUI-zen-workspaces-multiview');
+
+    // randomly select an icon
+    let icon = this._kIcons[Math.floor(Math.random() * this._kIcons.length)];
+    this._workspaceCreateInput.textContent = '';
+    this._workspaceCreateInput.value = '';
+    this._workspaceCreateInput.setAttribute('data-initial-value', '');
+    this._workspaceCreateIconsContainer.setAttribute('data-initial-value', icon);
+    document.querySelectorAll('#PanelUI-zen-workspaces-icon-picker-wrapper toolbarbutton').forEach((button) => {
+      if (button.label === icon) {
+        button.setAttribute('selected', 'true');
+      } else {
+        button.removeAttribute('selected');
+      }
+    });
+    document.querySelector('.PanelUI-zen-workspaces-icons-container.create').textContent = icon;
+
     PanelUI.showSubView('PanelUI-zen-workspaces-create', parentPanel);
   }
 
