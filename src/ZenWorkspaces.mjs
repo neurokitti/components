@@ -276,7 +276,6 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
     this._workspaceCreateInput.textContent = '';
     this._workspaceCreateInput.value = '';
     this._workspaceCreateInput.setAttribute('data-initial-value', '');
-    this._workspaceCreateIconsContainer.setAttribute('data-initial-value', icon);
     document.querySelectorAll('#PanelUI-zen-workspaces-icon-picker-wrapper toolbarbutton').forEach((button) => {
       if (button.label === icon) {
         button.setAttribute('selected', 'true');
