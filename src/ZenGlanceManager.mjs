@@ -38,6 +38,8 @@
         () => document.getElementById('zen-glance-loading')
       );
 
+      this.originalOverlayParent = this.overlay.parentNode;
+
       Services.obs.addObserver(this, "zen-glance-open");
       this.initProgressListener();
     }
@@ -70,11 +72,13 @@
       console.log(url);
       const newTabOptions = {
         userContextId: currentTab.getAttribute("usercontextid") || "",
-        inBackground: true,
-        skipLoading: true,
+        skipBackgroundNotify: true,
+        bulkOrderedOpen: true,
         insertTab: false,
+        skipLoad: false,
       };
-      const newTab = gBrowser.addTrustedTab(url, newTabOptions);
+      gBrowser.zenGlanceBrowser = true;
+      const newTab = gBrowser.addTrustedTab(Services.io.newURI(url).spec, newTabOptions);
       document.getElementById("zen-glance-tabs").appendChild(newTab);
       this.#currentBrowser = newTab.linkedBrowser;
       this.#currentTab = newTab;
@@ -86,25 +90,28 @@
       const initialY = data.y;
       const initialWidth = data.width;
       const initialHeight = data.height;
+
+      this.browserWrapper.removeAttribute("animate");
+      this.browserWrapper.removeAttribute("animate-end");
+      this.browserWrapper.removeAttribute("animate-full");
+      this.browserWrapper.removeAttribute("animate-full-end");
+
       const url = data.url;
       if (this.#currentBrowser) {
         return;
       }
       const currentTab = gBrowser.selectedTab;
-      const overlayWrapper = currentTab.linkedBrowser.closest(".browserSidebarContainer");
-      overlayWrapper.appendChild(this.overlay);
+      const overlayWrapper = document.getElementById("tabbrowser-tabbox");
+      overlayWrapper.prepend(this.overlay);
 
       const browserElement = this.createBrowserElement(url, currentTab);
-      this.browser.appendChild(browserElement);
+      browserElement.zenModeActive = true;
 
       browserElement.addProgressListener(this.progressListener, Ci.nsIWebProgress.NOTIFY_LOCATION);
-
-      browserElement.docShellIsActive = true;
       browserElement.loadURI(Services.io.newURI(url), {
-        triggeringPrincipal: Services.scriptSecurityManager.createNullPrincipal(
-          {}
-        ),
+        triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
       });
+      browserElement.docShellIsActive = true;
 
       this.loadingBar.setAttribute("not-loading", true);
       this.loadingBar.removeAttribute("loading");
@@ -127,8 +134,21 @@
       });
     }
 
-    closeGlance() {
+    closeGlance({ noAnimation = false } = {}) {
       if (this.#animating) {
+        return;
+      }
+
+      if (noAnimation) {
+        this.overlay.setAttribute("hidden", true);
+        this.overlay.removeAttribute("fade-out");
+        this.browserWrapper.removeAttribute("animate");
+        this.browserWrapper.removeAttribute("animate-end");
+        this.#currentBrowser?.remove();
+        this.#currentTab?.remove();
+        this.#currentBrowser = null;
+        this.#currentTab = null;
+        this.originalOverlayParent.appendChild(this.overlay);
         return;
       }
 
@@ -149,13 +169,47 @@
             this.#currentTab?.remove();
             this.#currentBrowser = null;
             this.#currentTab = null;
+
+            this.originalOverlayParent.appendChild(this.overlay);
           }, 500);
         });
       });  
     }
 
     onLocationChange(_) {
-      this.closeGlance();
+      if (!this.animatingFullOpen) {
+        this.closeGlance();
+        return;
+      }
+    }
+
+    fullyOpenGlance() {      
+      const newTabOptions = {
+        userContextId: this.#currentTab.getAttribute("usercontextid") || "",
+        skipLoad: true,
+        ownerTab: this.#currentTab,
+        preferredRemoteType: this.#currentTab.linkedBrowser.remoteType,
+      };
+
+      const newTab = gBrowser.duplicateTab(this.#currentTab, true, newTabOptions);
+
+      this.animatingFullOpen = true;
+
+      this.browserWrapper.setAttribute("animate-full", true);
+      setTimeout(() => {
+        window.requestAnimationFrame(() => {
+          this.browserWrapper.setAttribute("animate-full-end", true);
+          window.requestAnimationFrame(() => {
+            gBrowser.selectedTab = newTab;
+            window.requestAnimationFrame(() => {
+              setTimeout(() => {
+                this.animatingFullOpen = false;
+                this.closeGlance({ noAnimation: true });
+              }, 400);
+            });
+          });
+        });
+      }, 200);
     }
   }
 
