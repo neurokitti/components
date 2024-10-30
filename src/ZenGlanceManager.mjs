@@ -40,6 +40,8 @@
 
       this.originalOverlayParent = this.overlay.parentNode;
 
+      window.addEventListener("keydown", this.onKeyDown.bind(this));
+
       Services.obs.addObserver(this, "zen-glance-open");
       this.initProgressListener();
     }
@@ -60,6 +62,12 @@
           this.loadingBar.setAttribute("loading", true);
         }.bind(this),
       };
+    }
+
+    onKeyDown(event) {
+      if (event.key === "Escape") {
+        this.closeGlance();
+      }
     }
 
     onOverlayClick(event) {
