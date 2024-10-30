@@ -130,7 +130,7 @@
         setTimeout(() => {
           this.browserWrapper.setAttribute("animate-end", true);
           this.#animating = false;
-        }, 500);
+        }, 400);
       });
     }
 
@@ -140,15 +140,27 @@
       }
 
       if (noAnimation) {
-        this.overlay.setAttribute("hidden", true);
-        this.overlay.removeAttribute("fade-out");
-        this.browserWrapper.removeAttribute("animate");
-        this.browserWrapper.removeAttribute("animate-end");
-        this.#currentBrowser?.remove();
-        this.#currentTab?.remove();
-        this.#currentBrowser = null;
-        this.#currentTab = null;
-        this.originalOverlayParent.appendChild(this.overlay);
+        this.overlay.style.opacity = 0;
+        this.overlay.visivility = "collapse";
+        window.requestAnimationFrame(() => {
+          this.overlay.setAttribute("hidden", true);
+          this.overlay.removeAttribute("fade-out");
+          this.browserWrapper.removeAttribute("animate");
+          this.browserWrapper.removeAttribute("animate-end");
+
+          setTimeout(() => {
+            this.#currentBrowser?.remove();
+            this.#currentTab?.remove();
+            this.#currentBrowser = null;
+            this.#currentTab = null;
+            this.originalOverlayParent.appendChild(this.overlay);
+
+            this.overlay.style.opacity = 1;
+            this.overlay.visivility = "visible";
+
+            this.#animating = false;
+          }, 500);
+        });
         return;
       }
 
@@ -205,11 +217,11 @@
               setTimeout(() => {
                 this.animatingFullOpen = false;
                 this.closeGlance({ noAnimation: true });
-              }, 400);
+              }, 600);
             });
           });
         });
-      }, 200);
+      }, 300);
     }
   }
 
