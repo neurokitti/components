@@ -99,6 +99,7 @@
       this.browserWrapper.removeAttribute("animate-end");
       this.browserWrapper.removeAttribute("animate-full");
       this.browserWrapper.removeAttribute("animate-full-end");
+      this.browserWrapper.removeAttribute("has-finished-animation");
 
       const url = data.url;
       const currentTab = gBrowser.selectedTab;
@@ -130,6 +131,7 @@
         this.#animating = true;
         setTimeout(() => {
           this.browserWrapper.setAttribute("animate-end", true);
+          this.browserWrapper.setAttribute("has-finished-animation", true);
           this.#animating = false;
         }, 400);
       });
@@ -140,6 +142,7 @@
         return;
       }
 
+      this.browserWrapper.removeAttribute("has-finished-animation");
       if (noAnimation) {
         this.overlay.style.opacity = 0;
         this.overlay.visivility = "collapse";
@@ -208,6 +211,7 @@
 
       this.animatingFullOpen = true;
 
+      this.browserWrapper.removeAttribute("has-finished-animation");
       this.browserWrapper.setAttribute("animate-full", true);
       setTimeout(() => {
         window.requestAnimationFrame(() => {
