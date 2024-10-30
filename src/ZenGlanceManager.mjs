@@ -66,6 +66,8 @@
 
     onKeyDown(event) {
       if (event.key === "Escape" && this.#currentBrowser) {
+        event.preventDefault();
+        event.stopPropagation();
         this.closeGlance();
       }
     }
