@@ -17,7 +17,9 @@
         () => document.getElementById('zen-glance-sidebar-container')
       );
 
-      window.addEventListener("unload", this.onUnload.bind(this));
+      document.getElementById('tabbrowser-tabpanels').addEventListener("click", this.onOverlayClick.bind(this));
+
+      window.addEventListener("beforeunload", this.onUnload.bind(this));
     }
 
     onKeyDown(event) {
@@ -29,7 +31,7 @@
     }
 
     onOverlayClick(event) {
-      if (event.target === this.overlay || event.target === this.contentWrapper) {
+      if (event.target === this.overlay && event.originalTarget !== this.contentWrapper) {
         this.closeGlance();
       }
     }
