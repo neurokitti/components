@@ -12,13 +12,13 @@ export class ZenGlanceParent extends JSWindowActorParent {
         return Services.prefs.getIntPref('zen.glance.hold-duration', 500);
       }
       case 'ZenGlance:OpenGlance': {
-        this.openGlance(message.data);
+        this.openGlance(this.browsingContext.topChromeWindow, message.data);
         break;
       }
     }
   }
 
-  openGlance(data) {
-    Services.obs.notifyObservers(null, 'zen-glance-open', JSON.stringify(data));
+  openGlance(window, data) {
+    window.gZenGlanceManager.openGlance(data);
   }
 }

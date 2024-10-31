@@ -8,6 +8,8 @@
     #animating = false;
 
     init() {
+      document.documentElement.setAttribute("zen-glance-uuid", gZenUIManager.generateUuidv4());
+
       ChromeUtils.defineLazyGetter(
         this,
         'overlay',
@@ -42,12 +44,7 @@
 
       window.addEventListener("keydown", this.onKeyDown.bind(this));
 
-      Services.obs.addObserver(this, "zen-glance-open");
       this.initProgressListener();
-    }
-
-    observe(subject, topic, data) {
-      this.openGlance(JSON.parse(data));
     }
 
     initProgressListener() {
@@ -242,7 +239,6 @@
   }
 
   window.gZenGlanceManager = new ZenGlanceManager();
-
 
   function registerWindowActors() {
     if (Services.prefs.getBoolPref("zen.glance.enabled", true)) {
