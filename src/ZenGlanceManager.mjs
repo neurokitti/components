@@ -39,9 +39,7 @@
     onUnload() {
       // clear everything
       if (this.#currentBrowser) {
-        gBrowser.removeTab(this.#currentTab, {
-          animate: false,
-        });
+        gBrowser.removeTab(this.#currentTab);
       }
     }
 
