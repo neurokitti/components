@@ -115,9 +115,11 @@
       }
       const currentTimestamp = Date.now();
       const excludedUrls = this.excludedUrls;
-      for (const tab of this.unloader.tabs) {
+      const tabs = gBrowser.tabs;
+      for (let i = 0; i < tabs.length; i++) {
+        const tab = tabs[i];
         if (this.unloader.canUnloadTab(tab, currentTimestamp, excludedUrls)) {
-          tab.ownerGlobal.gBrowser.discardBrowser(tab);
+          this.unloader.unload(tab);
         }
       }
     }
@@ -216,23 +218,31 @@
       document.getElementById('context_closeDuplicateTabs').parentNode.appendChild(element);
     }
 
+    unload(tab) {
+      gBrowser.discardBrowser(tab);
+      tab.removeAttribute('linkedpanel');
+    }
+
     unloadTab() {
       const tabs = TabContextMenu.contextTab.multiselected ? gBrowser.selectedTabs : [TabContextMenu.contextTab];
-      for (const tab of tabs) {
-        gBrowser.discardBrowser(tab);
+      for (let i = 0; i < tabs.length; i++) {
+        const tab = tabs[i];
+        this.unload(tab);
       }
     }
 
     preventUnloadTab() {
       const tabs = TabContextMenu.contextTab.multiselected ? gBrowser.selectedTabs : [TabContextMenu.contextTab];
-      for (const tab of tabs) {
+      for (let i = 0; i < tabs.length; i++) {
+        const tab = tabs[i];
         tab.zenIgnoreUnload = true;
       }
     }
 
     ignoreUnloadTab() {
       const tabs = TabContextMenu.contextTab.multiselected ? gBrowser.selectedTabs : [TabContextMenu.contextTab];
-      for (const tab of tabs) {
+      for (let i = 0; i < tabs.length; i++) {
+        const tab = tabs[i];
         tab.zenIgnoreUnload = false;
       }
     }

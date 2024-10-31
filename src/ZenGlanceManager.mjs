@@ -163,6 +163,7 @@
           this.browserWrapper.removeAttribute("animate-end");
 
           setTimeout(() => {
+            this.#currentBrowser?.destroy();
             this.#currentBrowser?.remove();
             this.#currentTab?.remove();
             this.#currentBrowser = null;
