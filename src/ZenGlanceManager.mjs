@@ -19,7 +19,7 @@
 
       document.getElementById('tabbrowser-tabpanels').addEventListener("click", this.onOverlayClick.bind(this));
 
-      window.addEventListener("beforeunload", this.onUnload.bind(this));
+      Services.obs.addObserver(this, "quit-application-requested");
     }
 
     onKeyDown(event) {
@@ -33,6 +33,14 @@
     onOverlayClick(event) {
       if (event.target === this.overlay && event.originalTarget !== this.contentWrapper) {
         this.closeGlance();
+      }
+    }
+
+    observe(subject, topic) {
+      switch (topic) {
+        case "quit-application-requested":
+          this.onUnload();
+          break;
       }
     }
 
