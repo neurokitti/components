@@ -787,7 +787,7 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
     document.documentElement.setAttribute('zen-workspace-id', window.uuid);
     let tabCount = 0;
     for (let tab of gBrowser.tabs) {
-      if (!tab.hasAttribute('zen-workspace-id')) {
+      if (!tab.hasAttribute('zen-workspace-id') && !tab.pinned) {
         tab.setAttribute('zen-workspace-id', window.uuid);
         tabCount++;
       }
@@ -856,10 +856,6 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
     button.removeAttribute('disabled');
   }
 
-  get _shouldAllowPinTab() {
-    return Services.prefs.getBoolPref('zen.workspaces.individual-pinned-tabs');
-  }
-
   addChangeListeners(func) {
     if (!this._changeListeners) {
       this._changeListeners = [];
@@ -875,13 +871,10 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
     this._inChangingWorkspace = true;
     this.activeWorkspace = window.uuid;
 
-    const shouldAllowPinnedTabs = this._shouldAllowPinTab;
     this.tabContainer._invalidateCachedTabs();
     let firstTab = undefined;
     for (let tab of gBrowser.tabs) {
-      if (
-        (tab.getAttribute('zen-workspace-id') === window.uuid && !(tab.pinned && !shouldAllowPinnedTabs)) ||
-        !tab.hasAttribute('zen-workspace-id')
+      if (tab.getAttribute('zen-workspace-id') === window.uuid || !tab.hasAttribute('zen-workspace-id')
       ) {
         if (!firstTab && (onInit || !tab.pinned)) {
           firstTab = tab;
@@ -890,7 +883,7 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
           firstTab = null; // note: Do not add "undefined" here, a new tab would be created
         }
         gBrowser.showTab(tab);
-        if (!tab.hasAttribute('zen-workspace-id')) {
+        if (!tab.hasAttribute('zen-workspace-id') && !tab.pinned) {
           // We add the id to those tabs that got inserted before we initialize the workspaces
           // example use case: opening a link from an external app
           tab.setAttribute('zen-workspace-id', window.uuid);
@@ -904,8 +897,8 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
       this._createNewTabForWorkspace(window);
     }
     for (let tab of gBrowser.tabs) {
-      if (tab.getAttribute('zen-workspace-id') !== window.uuid) {
-        gBrowser.hideTab(tab, undefined, shouldAllowPinnedTabs);
+      if (tab.getAttribute('zen-workspace-id') !== window.uuid && !(tab.pinned && !tab.hasAttribute('zen-workspace-id'))) {
+        gBrowser.hideTab(tab, undefined, true);
       }
     }
     this.tabContainer._invalidateCachedTabs();
@@ -986,7 +979,7 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
     const parent = browser.ownerGlobal;
     let tab = gBrowser.getTabForBrowser(browser);
     let workspaceID = tab.getAttribute('zen-workspace-id');
-    if (!workspaceID || (tab.pinned && !this._shouldAllowPinTab)) {
+    if (!workspaceID || tab.pinned) {
       return;
     }
     let activeWorkspace = await parent.ZenWorkspaces.getActiveWorkspace();

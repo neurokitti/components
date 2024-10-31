@@ -36,21 +36,135 @@
     }
   }
 
-  class ZenPinnedTabManager extends ZenPreloadedFeature {
-    init() {
+  class ZenPinnedTabManager extends ZenMultiWindowFeature {
+
+    async init() {
       this.observer = new ZenPinnedTabsObserver();
+      await ZenPinnedTabsStorage.init();
+      // TODO: Figure out if this is even needed - for now it's commented out
+      // await SessionStore.promiseInitialized;
+      await  this._refreshPinnedTabs();
       this._initClosePinnedTabShortcut();
       this._insertItemsIntoTabContextMenu();
       this.observer.addPinnedTabListener(this._onPinnedTabEvent.bind(this));
+    }
+
+    async _refreshPinnedTabs() {
+      await this._initializePinsCache();
+      this._initializePinnedTabs();
+    }
+
+    async _initializePinsCache() {
+      try {
+        // Get pin data
+        const pins = await ZenPinnedTabsStorage.getPins();
+
+        // Enhance pins with favicons
+        const enhancedPins = await Promise.all(pins.map(async pin => {
+          try {
+            const faviconData = await PlacesUtils.promiseFaviconData(pin.url);
+            return {
+              ...pin,
+              iconUrl: faviconData?.uri?.spec || null
+            };
+          } catch(ex) {
+            // If favicon fetch fails, continue without icon
+            return {
+              ...pin,
+              iconUrl: null
+            };
+          }
+        }));
+
+        this._pinsCache = enhancedPins.sort((a, b) => {
+          if (!a.workspaceUuid && b.workspaceUuid) return -1;
+          if (a.workspaceUuid && !b.workspaceUuid) return 1;
+          return 0;
+        });
+
+      } catch (ex) {
+        console.error("Failed to initialize pins cache:", ex);
+        this._pinsCache = [];
+      }
+
+      return this._pinsCache;
+    }
+
+    _initializePinnedTabs() {
+      const pins = this._pinsCache;
+      if (!pins?.length) {
+        // If there are no pins, we should remove any existing pinned tabs
+        for (let tab of gBrowser.tabs) {
+          if (tab.pinned && tab.getAttribute("zen-pin-id")) {
+            gBrowser.removeTab(tab);
+          }
+        }
+        return;
+      }
+
+      const activeTab = gBrowser.selectedTab;
+      const pinnedTabsByUUID = new Map();
+      const pinsToCreate = new Set(pins.map(p => p.uuid));
+
+      // First pass: identify existing tabs and remove those without pins
+      for (let tab of gBrowser.tabs) {
+        const pinId = tab.getAttribute("zen-pin-id");
+        if (!pinId) {
+          continue;
+        }
+
+        if (pinsToCreate.has(pinId)) {
+          // This is a valid pinned tab that matches a pin
+          pinnedTabsByUUID.set(pinId, tab);
+          pinsToCreate.delete(pinId);
+        } else {
+          // This is a pinned tab that no longer has a corresponding pin
+          gBrowser.removeTab(tab);
+        }
+      }
+
+      // Second pass: create new tabs for pins that don't have tabs
+      for (let pin of pins) {
+        if (!pinsToCreate.has(pin.uuid)) {
+          continue; // Skip pins that already have tabs
+        }
+
+        let newTab = gBrowser.addTrustedTab(pin.url, {
+          skipAnimation: true,
+          userContextId: pin.containerTabId || 0,
+          allowInheritPrincipal: false,
+          createLazyBrowser: true,
+          skipLoad: true,
+        });
+
+        // Set the favicon from cache
+        if (pin.iconUrl) {
+          gBrowser.setIcon(newTab, pin.iconUrl, null,
+              Services.scriptSecurityManager.getSystemPrincipal());
+        }
+
+        newTab.setAttribute("zen-pin-id", pin.uuid);
+
+        if (pin.workspaceUuid) {
+          newTab.setAttribute("zen-workspace-id", pin.workspaceUuid);
+        }
+
+        gBrowser.pinTab(newTab);
+      }
+
+      // Restore active tab
+      if (!activeTab.closing) {
+        gBrowser.selectedTab = activeTab;
+      }
     }
 
     _onPinnedTabEvent(action, event) {
       const tab = event.target;
       switch (action) {
         case "TabPinned":
-          this._setPinnedAttributes(tab);
           tab._zenClickEventListener = this._onTabClick.bind(this, tab);
           tab.addEventListener("click", tab._zenClickEventListener);
+          this._setPinnedAttributes(tab);
           break;
         case "TabUnpinned":
           this._removePinnedAttributes(tab);
@@ -71,7 +185,7 @@
       }
     }
 
-    resetPinnedTab(tab) {
+    async resetPinnedTab(tab) {
 
       if (!tab) {
         tab = TabContextMenu.contextTab;
@@ -81,33 +195,65 @@
         return;
       }
 
-      this._resetTabToStoredState(tab);
+      await this._resetTabToStoredState(tab);
     }
 
-    replacePinnedUrlWithCurrent() {
+    async replacePinnedUrlWithCurrent() {
       const tab = TabContextMenu.contextTab;
-      if (!tab || !tab.pinned) {
+      if (!tab || !tab.pinned || !tab.getAttribute("zen-pin-id")) {
         return;
       }
 
-      this._setPinnedAttributes(tab);
-    }
-
-    _setPinnedAttributes(tab) {
       const browser = tab.linkedBrowser;
-      const entry = {
-        url: browser.currentURI.spec,
-        title: tab.label || browser.contentTitle,
-        triggeringPrincipal_base64: lazy.E10SUtils.SERIALIZED_SYSTEMPRINCIPAL
-      };
 
-      tab.setAttribute("zen-pinned-entry", JSON.stringify(entry));
-      tab.setAttribute("zen-pinned-icon", browser.mIconURL);
+      const pin = this._pinsCache.find(pin => pin.uuid === tab.getAttribute("zen-pin-id"));
+
+      if (!pin) {
+        return;
+      }
+
+      pin.title = tab.label || browser.contentTitle;
+      pin.url = browser.currentURI.spec;
+      pin.workspaceUuid = tab.getAttribute("zen-workspace-id");
+      pin.userContextId = tab.getAttribute("userContextId");
+
+      await ZenPinnedTabsStorage.savePin(pin);
+      await this._refreshPinnedTabs();
     }
 
-    _removePinnedAttributes(tab) {
-      tab.removeAttribute("zen-pinned-entry");
-      tab.removeAttribute("zen-pinned-icon");
+    async _setPinnedAttributes(tab) {
+      const browser = tab.linkedBrowser;
+
+      const uuid = gZenUIManager.generateUuidv4();
+
+      await ZenPinnedTabsStorage.savePin({
+        uuid,
+        title: tab.label || browser.contentTitle,
+        url: browser.currentURI.spec,
+        containerTabId: tab.getAttribute("userContextId"),
+        workspaceUuid: tab.getAttribute("zen-workspace-id")
+      });
+
+      tab.setAttribute("zen-pin-id", uuid);
+
+      await this._refreshPinnedTabs();
+    }
+
+    async _removePinnedAttributes(tab) {
+      if(!tab.getAttribute("zen-pin-id")) {
+        return;
+      }
+
+      await ZenPinnedTabsStorage.removePin(tab.getAttribute("zen-pin-id"));
+
+      tab.removeAttribute("zen-pin-id");
+
+      if(!tab.hasAttribute("zen-workspace-id") && ZenWorkspaces.workspaceEnabled) {
+        const workspace = await ZenWorkspaces.getActiveWorkspace();
+        tab.setAttribute("zen-workspace-id", workspace.uuid);
+      }
+
+      await this._refreshPinnedTabs();
     }
 
     _initClosePinnedTabShortcut() {
@@ -119,20 +265,14 @@
     }
 
     setPinnedTabState(tabData, tab) {
-      tabData.zenPinnedEntry = tab.getAttribute("zen-pinned-entry");
-      tabData.zenPinnedIcon = tab.getAttribute("zen-pinned-icon");
+      tabData.zenPinId = tab.getAttribute("zen-pin-id");
     }
 
     updatePinnedTabForSessionRestore(tabData, tab) {
-      if (tabData.zenPinnedEntry) {
-        tab.setAttribute("zen-pinned-entry", tabData.zenPinnedEntry);
+      if (tabData.zenPinId) {
+        tab.setAttribute("zen-pin-id", tabData.zenPinId);
       } else {
-        tab.removeAttribute("zen-pinned-entry");
-      }
-      if (tabData.zenPinnedIcon) {
-        tab.setAttribute("zen-pinned-icon", tabData.zenPinnedIcon);
-      } else {
-        tab.removeAttribute("zen-pinned-icon");
+        tab.removeAttribute("zen-pin-id");
       }
     }
 
@@ -197,20 +337,41 @@
       }
     }
 
-    _resetTabToStoredState(tab) {
-      const entry = tab.getAttribute("zen-pinned-entry");
-      const icon = tab.getAttribute("zen-pinned-icon");
+    async _resetTabToStoredState(tab) {
+      const id = tab.getAttribute("zen-pin-id");
 
-      if (entry) {
+      if (!id) {
+        return;
+      }
+
+      const pin = this._pinsCache.find(pin => pin.uuid === id);
+
+      if (pin) {
         const tabState = SessionStore.getTabState(tab);
         const state = JSON.parse(tabState);
+        const icon = await PlacesUtils.promiseFaviconData(pin.url);
 
-        state.entries = [JSON.parse(entry)];
+        state.entries = [{
+          url: pin.url,
+          title: pin.title,
+          triggeringPrincipal_base64: lazy.E10SUtils.SERIALIZED_SYSTEMPRINCIPAL
+        }];
         state.image = icon;
         state.index = 0;
 
         SessionStore.setTabState(tab, state);
       }
+    }
+
+    _addGlobalPin() {
+      const tab = TabContextMenu.contextTab;
+      if (!tab || tab.pinned) {
+        return;
+      }
+
+      tab.removeAttribute("zen-workspace-id");
+
+      gBrowser.pinTab(tab);
     }
 
     _insertItemsIntoTabContextMenu() {
@@ -225,6 +386,15 @@
                       oncommand="gZenPinnedTabManager.resetPinnedTab();"/>
         `);
       document.getElementById('tabContextMenu').appendChild(elements);
+
+      const element = window.MozXULElement.parseXULToFragment(`
+            <menuitem id="context_zen-pin-tab-global"
+                      data-lazy-l10n-id="pin-tab-global"
+                      hidden="true"
+                      oncommand="gZenPinnedTabManager._addGlobalPin();"/>   
+        `);
+
+      document.getElementById('context_pinTab').after(element);
     }
 
     resetPinnedTabData(tabData) {
@@ -237,8 +407,9 @@
 
     updatePinnedTabContextMenu(contextTab) {
       const isVisible = contextTab.pinned  && !contextTab.multiselected;
-      document.getElementById("context_zen-reset-pinned-tab").hidden = !isVisible || !contextTab.getAttribute("zen-pinned-entry");
+      document.getElementById("context_zen-reset-pinned-tab").hidden = !isVisible || !contextTab.getAttribute("zen-pin-id");
       document.getElementById("context_zen-replace-pinned-url-with-current").hidden = !isVisible;
+      document.getElementById("context_zen-pin-tab-global").hidden = contextTab.pinned;
     }
   }
 
