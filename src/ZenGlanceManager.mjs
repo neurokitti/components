@@ -226,17 +226,14 @@
       this.browserWrapper.removeAttribute("has-finished-animation");
       this.browserWrapper.setAttribute("animate-full", true);
       gBrowser.selectedTab = this.#currentTab;
+      this.currentParentTab.linkedBrowser.closest(".browserSidebarContainer").classList.remove("zen-glance-background");
       setTimeout(() => {
         window.requestAnimationFrame(() => {
           this.browserWrapper.setAttribute("animate-full-end", true);
-          window.requestAnimationFrame(() => {
-            window.requestAnimationFrame(() => {
-              setTimeout(() => {
-                this.animatingFullOpen = false;
-                this.closeGlance({ noAnimation: true });
-              }, 600);
-            });
-          });
+          setTimeout(() => {
+            this.animatingFullOpen = false;
+            this.closeGlance({ noAnimation: true });
+          }, 600);
         });
       }, 300);
     }

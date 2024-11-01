@@ -439,7 +439,7 @@
         }
       }
       const result = this.pSBC(
-        this.isDarkMode ? 0.5 : -0.5, 
+        this.isDarkMode ? 0.1 : -0.1, 
         `rgb(${dominantColor[0]}, ${dominantColor[1]}, ${dominantColor[2]})`);
       return result?.match(/\d+/g).map(Number);
     }
