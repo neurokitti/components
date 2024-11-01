@@ -10,6 +10,7 @@
     init() {
       document.documentElement.setAttribute("zen-glance-uuid", gZenUIManager.generateUuidv4());
       window.addEventListener("keydown", this.onKeyDown.bind(this));
+      window.addEventListener("TabClose", this.onTabClose.bind(this));
 
       ChromeUtils.defineLazyGetter(
         this,
@@ -122,7 +123,7 @@
       });
     }
 
-    closeGlance({ noAnimation = false } = {}) {
+    closeGlance({ noAnimation = false, onTabClose = false } = {}) {
       if (this.#animating || !this.#currentBrowser || this.animatingOpen) {
         return;
       }
@@ -143,7 +144,12 @@
         window.requestAnimationFrame(() => {
           this.browserWrapper.setAttribute("animate", true);
           setTimeout(() => {
-            this.quickCloseGlance({ closeParentTab: false });
+            if (!this.currentParentTab) {
+              return;
+            }
+            if (!onTabClose) {
+              this.quickCloseGlance({ closeParentTab: false });
+            }
             this.overlay.setAttribute("hidden", true);
             this.overlay.removeAttribute("fade-out");
             this.browserWrapper.removeAttribute("animate");
@@ -155,7 +161,9 @@
             this.#currentTab = null;
             this.currentParentTab = null;
 
-            gBrowser.selectedTab = this.currentParentTab;
+            if (!onTabClose) {
+              gBrowser.selectedTab = this.currentParentTab;
+            }
 
             setTimeout(() => {
               gBrowser.removeTab(this.lastCurrentTab);
@@ -181,6 +189,8 @@
       this.#currentBrowser.docShellIsActive = true;
       this.#currentBrowser.setAttribute("zen-glance-selected", true);
 
+      this.currentParentTab._visuallySelected = true;
+
       this.currentParentTab.linkedBrowser.closest(".browserSidebarContainer").classList.add("zen-glance-background");
       this._duringOpening = false;
     }
@@ -196,6 +206,9 @@
       }
       if (closeCurrentTab) {
         this.#currentBrowser.docShellIsActive = false;
+      }
+      if (!this.currentParentTab._visuallySelected) {
+        this.currentParentTab._visuallySelected = false;
       }
       this.#currentBrowser.removeAttribute("zen-glance-selected");
       this.currentParentTab.linkedBrowser.closest(".browserSidebarContainer").classList.remove("zen-glance-background");
@@ -213,6 +226,12 @@
         this.quickOpenGlance();
       } else if ((!this.animatingFullOpen || this.animatingOpen) && this.#currentBrowser) {
         this.closeGlance();
+      }
+    }
+
+    onTabClose(event) {
+      if (event.target === this.currentParentTab) {
+        this.closeGlance({ onTabClose: true });
       }
     }
 
