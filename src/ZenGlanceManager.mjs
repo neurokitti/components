@@ -65,7 +65,7 @@
 
       gBrowser.selectedTab = newTab;
       currentTab.querySelector(".tab-content").appendChild(newTab);
-
+      newTab.setAttribute("zen-glance-tab", true);
       this.#currentBrowser = newTab.linkedBrowser;
       this.#currentTab = newTab;
       return this.#currentBrowser;
@@ -111,7 +111,6 @@
         this.browserWrapper.style.setProperty("--initial-height", initialHeight + "px");
 
         this.overlay.removeAttribute("fade-out");
-        this.overlay.removeAttribute("hidden");
         this.browserWrapper.setAttribute("animate", true);
         this.#animating = true;
         setTimeout(() => {
@@ -124,7 +123,7 @@
     }
 
     closeGlance({ noAnimation = false, onTabClose = false } = {}) {
-      if (this.#animating || !this.#currentBrowser || this.animatingOpen) {
+      if (this.#animating || !this.#currentBrowser || this.animatingOpen || this._duringOpening) {
         return;
       }
 
@@ -134,6 +133,22 @@
         this.#currentBrowser = null;
         this.#currentTab = null;
         return;
+      }
+
+      gBrowser._insertTabAtIndex(this.#currentTab, {
+        index: this.currentParentTab._tPos + 1,
+      });
+
+      if (onTabClose) {
+        // Create new tab if no more ex
+        if (gBrowser.tabs.length === 1) {
+          gBrowser.selectedTab = gZenUIManager.openAndChangeToTab(Services.prefs.getStringPref('browser.startup.homepage'));
+          return;
+        } else if (gBrowser.selectedTab === this.#currentTab) {
+          this._duringOpening = true;
+          gBrowser.tabContainer.advanceSelectedTab(1, true); // to skip the current tab
+          this._duringOpening = false;
+        }
       }
 
       // do NOT touch here, I don't know what it does, but it works...
@@ -147,26 +162,37 @@
             if (!this.currentParentTab) {
               return;
             }
+
             if (!onTabClose) {
-              this.quickCloseGlance({ closeParentTab: false });
+              this.quickCloseGlance();
             }
-            this.overlay.setAttribute("hidden", true);
             this.overlay.removeAttribute("fade-out");
             this.browserWrapper.removeAttribute("animate");
 
-            this.#currentTab.setAttribute("hidden", true);
+            this.#currentTab.style.display = "none";
 
             this.#currentBrowser = null;
             this.lastCurrentTab = this.#currentTab;
             this.#currentTab = null;
-            this.currentParentTab = null;
 
-            if (!onTabClose) {
+            this.overlay.classList.remove("zen-glance-overlay");
+
+            if (!onTabClose && gBrowser.selectedTab === this.lastCurrentTab) {
+              this._duringOpening = true;
               gBrowser.selectedTab = this.currentParentTab;
             }
 
+            // reset everything
+            this.currentParentTab = null;
+            this.browserWrapper = null;
+            this.overlay = null;
+            this.contentWrapper = null;
+
             setTimeout(() => {
+              this.lastCurrentTab.removeAttribute("zen-glance-tab");
               gBrowser.removeTab(this.lastCurrentTab);
+              this.lastCurrentTab = null;
+              this._duringOpening = false;
             }, 100);
           }, 500);
         });
@@ -190,28 +216,35 @@
       this.#currentBrowser.setAttribute("zen-glance-selected", true);
 
       this.currentParentTab._visuallySelected = true;
+      this.overlay.classList.add("deck-selected");
 
       this.currentParentTab.linkedBrowser.closest(".browserSidebarContainer").classList.add("zen-glance-background");
       this._duringOpening = false;
     }
 
     quickCloseGlance({ closeCurrentTab = true, closeParentTab = true } = {}) {
-      if (closeParentTab) {
-        this.currentParentTab.linkedBrowser.closest(".browserSidebarContainer").classList.remove("deck-selected");
+      const parentHasBrowser = !!(this.currentParentTab.linkedBrowser);
+      if (parentHasBrowser) {
+        if (closeParentTab) {
+          this.currentParentTab.linkedBrowser.closest(".browserSidebarContainer").classList.remove("deck-selected");
+        }
+        this.currentParentTab.linkedBrowser.zenModeActive = false;
       }
-      this.currentParentTab.linkedBrowser.zenModeActive = false;
       this.#currentBrowser.zenModeActive = false;
-      if (closeParentTab) {
+      if (closeParentTab && parentHasBrowser) {
         this.currentParentTab.linkedBrowser.docShellIsActive = false;
       }
       if (closeCurrentTab) {
         this.#currentBrowser.docShellIsActive = false;
+        this.overlay.classList.remove("deck-selected");
       }
-      if (!this.currentParentTab._visuallySelected) {
+      if (!this.currentParentTab._visuallySelected && closeParentTab) {
         this.currentParentTab._visuallySelected = false;
       }
       this.#currentBrowser.removeAttribute("zen-glance-selected");
-      this.currentParentTab.linkedBrowser.closest(".browserSidebarContainer").classList.remove("zen-glance-background");
+      if (parentHasBrowser) {
+        this.currentParentTab.linkedBrowser.closest(".browserSidebarContainer").classList.remove("zen-glance-background");
+      }
     }
 
     onLocationChange(_) {
@@ -241,9 +274,11 @@
       });
 
       this.animatingFullOpen = true;
+      this.currentParentTab._visuallySelected = false;
 
       this.browserWrapper.removeAttribute("has-finished-animation");
       this.browserWrapper.setAttribute("animate-full", true);
+      this.#currentTab.removeAttribute("zen-glance-tab");
       gBrowser.selectedTab = this.#currentTab;
       this.currentParentTab.linkedBrowser.closest(".browserSidebarContainer").classList.remove("zen-glance-background");
       setTimeout(() => {
