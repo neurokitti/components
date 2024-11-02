@@ -189,6 +189,7 @@
             this.lastCurrentTab.removeAttribute("zen-glance-tab");
               
             gBrowser.tabContainer._invalidateCachedTabs();
+            this.lastCurrentTab.closing = true;
             gBrowser.removeTab(this.lastCurrentTab, { animate: false });
 
             this.#currentTab = null;

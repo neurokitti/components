@@ -288,7 +288,7 @@
 
     async addCustomColor() {
       const color = this.customColorInput.value;
-      if (!color) {
+      if (!color || !color.match(/^#[0-9a-f]{3,6}$/i)) {
         return;
       }
       // can be any color format, we just add it to the list as a dot, but hidden
