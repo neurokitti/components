@@ -173,6 +173,7 @@
             this.lastCurrentTab = this.#currentTab;
 
             this.overlay.classList.remove("zen-glance-overlay");
+            gBrowser._getSwitcher().setTabStateNoAction(this.lastCurrentTab, gBrowser.AsyncTabSwitcher.STATE_UNLOADED);
 
             if (!onTabClose && gBrowser.selectedTab === this.lastCurrentTab) {
               this._duringOpening = true;
@@ -187,9 +188,9 @@
 
             this.lastCurrentTab.removeAttribute("zen-glance-tab");
               
-            this.#currentTab.remove();
-            this.#currentBrowser.destroy();
-            this.#currentBrowser.closest(".browserSidebarContainer").remove();
+            gBrowser.tabContainer._invalidateCachedTabs();
+            gBrowser.removeTab(this.lastCurrentTab, { animate: false });
+
             this.#currentTab = null;
             this.#currentBrowser = null;
 
