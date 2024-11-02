@@ -609,12 +609,12 @@ class ZenBrowserManagerSidebar extends ZenDOMOperatedFeature {
   togglePinned(elem) {
     if (this.sidebar.hasAttribute('pinned')) {
       this._removePinnedFromElements();
-      this.moveToTabBoxWrapper();
+      //this.moveToTabBoxWrapper();
     } else {
       this._setPinnedToElements();
-      this.moveToTabBox();
+      //this.moveToTabBox();
     }
-    this.update();
+    this.update();  
   }
 
   get sidebarElement() {
