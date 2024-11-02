@@ -288,7 +288,7 @@
 
     async addCustomColor() {
       const color = this.customColorInput.value;
-      if (!color || !color.match(/^#[0-9a-f]{3,6}$/i)) {
+      if (!color || !color.match(/^#[0-9a-f]{3,8}$/i)) {
         return;
       }
       // can be any color format, we just add it to the list as a dot, but hidden
@@ -461,6 +461,9 @@
 
         // get the theme from the window
         workspaceTheme = theme || windowWorkspace.theme;
+        workspaceTheme.gradientColors = workspaceTheme.gradientColors.filter(color => 
+          color.isCustom ? color.c.match(/^#[0-9a-f]{3,8}$/i) : true
+        );
 
         const appWrapper = browser.document.getElementById('zen-main-app-wrapper');
         if (!skipUpdate) {
