@@ -6,9 +6,6 @@
   XPCOMUtils.defineLazyPreferenceGetter(lazy, 'zenTabUnloaderTimeout', 'zen.tab-unloader.timeout-minutes', 20);
 
   XPCOMUtils.defineLazyPreferenceGetter(lazy, 'zenTabUnloaderExcludedUrls', 'zen.tab-unloader.excluded-urls', '');
-  
-  XPCOMUtils.defineLazyPreferenceGetter(lazy, 'zenTabUnloaderRamThreshold', 'zen.tab-unloader.ram-threshold', 70);
-
 
   const ZEN_TAB_UNLOADER_DEFAULT_EXCLUDED_URLS = [
     '^about:',
@@ -78,16 +75,7 @@
       this.interval = setInterval(this.intervalListener.bind(this), ZenTabsIntervalUnloader.INTERVAL);
       this.#excludedUrls = this.lazyExcludeUrls;
     }
-		
-	async getRAMUsage() { // RAM usage ceck
-      try {
-        const memoryInfo = await Components.utils.getMemoryInfo();
-        const totalPhysicalMemory = memoryInfo.total;
-        const usedMemory = memoryInfo.resident;
-        return (usedMemory / totalPhysicalMemory) * 100;
-      }
-    }
-	
+
     get lazyExcludeUrls() {
       return [
         ...ZEN_TAB_UNLOADER_DEFAULT_EXCLUDED_URLS,
@@ -125,12 +113,6 @@
       if (!lazy.zenTabUnloaderEnabled) {
         return;
       }
-	  // Check RAM usage before proceeding
-      const ramUsage = await this.getRAMUsage();
-      if (ramUsage < lazy.zenTabUnloaderRamThreshold) {
-        return; // Don't unload tabs if RAM usage is below threshold
-      }
-
       const currentTimestamp = Date.now();
       const excludedUrls = this.excludedUrls;
       const tabs = gBrowser.tabs;
