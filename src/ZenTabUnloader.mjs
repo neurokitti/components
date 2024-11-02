@@ -226,8 +226,9 @@
     unloadTab() {
       const tabs = TabContextMenu.contextTab.multiselected ? gBrowser.selectedTabs : [TabContextMenu.contextTab];
       for (let i = 0; i < tabs.length; i++) {
-        const tab = tabs[i];
-        this.unload(tab);
+        if (this.canUnloadTab(tabs[i], Date.now(), [], true)) {
+          this.unload(tabs[i]);
+        }
       }
     }
 
@@ -247,7 +248,7 @@
       }
     }
 
-    canUnloadTab(tab, currentTimestamp, excludedUrls) {
+    canUnloadTab(tab, currentTimestamp, excludedUrls, ignoreTimestamp = false) {
       if (
         tab.pinned ||
         tab.selected ||
@@ -257,12 +258,16 @@
         !tab.linkedPanel ||
         tab.splitView ||
         tab.attention ||
+        tab.linkedBrowser?.zenModeActive ||
         tab.pictureinpicture ||
         tab.soundPlaying ||
         tab.zenIgnoreUnload ||
         excludedUrls.some((url) => url.test(tab.linkedBrowser.currentURI.spec))
       ) {
         return false;
+      }
+      if (ignoreTimestamp) {
+        return true;
       }
       const lastActivity = tab.lastActivity;
       if (!lastActivity) {
