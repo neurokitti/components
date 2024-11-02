@@ -153,6 +153,7 @@
 
       // do NOT touch here, I don't know what it does, but it works...
       window.requestAnimationFrame(() => {
+        this.#currentTab.style.display = "none";
         this.browserWrapper.removeAttribute("animate");
         this.browserWrapper.removeAttribute("animate-end");
         this.overlay.setAttribute("fade-out", true);
@@ -169,11 +170,7 @@
             this.overlay.removeAttribute("fade-out");
             this.browserWrapper.removeAttribute("animate");
 
-            this.#currentTab.style.display = "none";
-
-            this.#currentBrowser = null;
             this.lastCurrentTab = this.#currentTab;
-            this.#currentTab = null;
 
             this.overlay.classList.remove("zen-glance-overlay");
 
@@ -188,12 +185,16 @@
             this.overlay = null;
             this.contentWrapper = null;
 
-            setTimeout(() => {
-              this.lastCurrentTab.removeAttribute("zen-glance-tab");
-              gBrowser.removeTab(this.lastCurrentTab);
-              this.lastCurrentTab = null;
-              this._duringOpening = false;
-            }, 100);
+            this.lastCurrentTab.removeAttribute("zen-glance-tab");
+              
+            this.#currentTab.remove();
+            this.#currentBrowser.destroy();
+            this.#currentBrowser.closest(".browserSidebarContainer").remove();
+            this.#currentTab = null;
+            this.#currentBrowser = null;
+
+            this.lastCurrentTab = null;
+            this._duringOpening = false;
           }, 500);
         });
       });  
