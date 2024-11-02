@@ -294,6 +294,38 @@
         });
       }, 300);
     }
+
+    openGlanceForBookmark(event) {
+      const activationMethod = Services.prefs.getStringPref('zen.glance.activation-method', 'ctrl');
+
+      if (activationMethod === 'ctrl' && !event.ctrlKey) {
+        return;
+      } else if (activationMethod === 'alt' && !event.altKey) {
+        return;
+      } else if (activationMethod === 'shift' && !event.shiftKey) {
+        return;
+      } else if (activationMethod === 'meta' && !event.metaKey) {
+        return;
+      }else if (activationMethod === 'mantain' || typeof activationMethod === 'undefined') {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const rect = event.target.getBoundingClientRect();
+      const data = {
+        url: event.target._placesNode.uri,
+        x: rect.left,
+        y: rect.top,
+        width: rect.width,
+        height: rect.height,
+      };
+
+      this.openGlance(data);
+
+      return false;
+    }
   }
 
   window.gZenGlanceManager = new ZenGlanceManager();
