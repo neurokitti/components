@@ -783,6 +783,27 @@ class ZenBrowserManagerSidebar extends ZenDOMOperatedFeature {
     const url = gContextMenu.linkURL || gContextMenu.target.ownerDocument.location.href;
     this._createNewPanel(url);
   }
+
+  toggleEssentialsAccordion(header) {
+    const content = document.getElementById('EssentialsToolbarItems');
+    const isExpanded = header.hasAttribute('expanded');
+
+    if (isExpanded) {
+      // Collapse
+      header.removeAttribute('expanded');
+      content.style.maxHeight = null;
+      content.style.opacity = '0';
+      setTimeout(() => {
+        content.removeAttribute('expanded');
+      }, 300);
+    } else {
+      // Expand
+      header.setAttribute('expanded', 'true');
+      content.setAttribute('expanded', 'true');
+      content.style.maxHeight = content.scrollHeight + "px";
+      content.style.opacity = '1';
+    }
+  }
 }
 
 window.gZenBrowserManagerSidebar = new ZenBrowserManagerSidebar();

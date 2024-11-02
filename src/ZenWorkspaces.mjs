@@ -941,6 +941,17 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
     for (let listener of this._changeListeners ?? []) {
       listener(window);
     }
+    // reset bookmark toolbars
+    const placesToolbar = document.getElementById("PlacesToolbar");
+    if(placesToolbar?._placesView) {
+      placesToolbar._placesView.invalidateContainer(placesToolbar._placesView._resultNode);
+    }
+
+    const essentialsToolbar = document.getElementById("EssentialsToolbar");
+    if(essentialsToolbar?._placesView) {
+      essentialsToolbar._placesView.invalidateContainer(essentialsToolbar._placesView._resultNode);
+    }
+
 
     this._inChangingWorkspace = false;
   }
@@ -1193,5 +1204,15 @@ var ZenWorkspaces = new (class extends ZenMultiWindowFeature {
     }
     const workspaceToSwitch = workspaces.workspaces[index];
     await this.changeWorkspace(workspaceToSwitch);
+  }
+
+  isBookmarkInAnotherWorkspace(bookmark) {
+    let tags = bookmark.tags;
+    // if any tag starts with "_workspace_id" and the workspace id doesnt match the active workspace id, return null
+    if (tags) {
+      for (let tag of tags.split(",")) {
+        return  !!(tag.startsWith("zen_workspace_") && this.getActiveWorkspaceFromCache()?.uuid !== tag.split("_")[2]);
+      }
+    }
   }
 })();
