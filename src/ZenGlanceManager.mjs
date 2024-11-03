@@ -139,6 +139,7 @@
         index: this.currentParentTab._tPos + 1,
       });
 
+      let quikcCloseZen = false;
       if (onTabClose) {
         // Create new tab if no more ex
         if (gBrowser.tabs.length === 1) {
@@ -148,6 +149,7 @@
           this._duringOpening = true;
           gBrowser.tabContainer.advanceSelectedTab(1, true); // to skip the current tab
           this._duringOpening = false;
+          quikcCloseZen = true;
         }
       }
 
@@ -164,7 +166,7 @@
               return;
             }
 
-            if (!onTabClose) {
+            if (!onTabClose || quikcCloseZen) {
               this.quickCloseGlance();
             }
             this.overlay.removeAttribute("fade-out");
@@ -211,7 +213,8 @@
         gBrowser.selectedTab = this.#currentTab;
       } catch (e) {}
 
-      this.currentParentTab.linkedBrowser.closest(".browserSidebarContainer").classList.add("deck-selected");
+      this.currentParentTab.linkedBrowser.closest(".browserSidebarContainer").classList.add("deck-selected", "zen-glance-background");
+      this.currentParentTab.linkedBrowser.closest(".browserSidebarContainer").classList.remove("zen-glance-overlay");
       this.currentParentTab.linkedBrowser.zenModeActive = true;
       this.#currentBrowser.zenModeActive = true;
       this.currentParentTab.linkedBrowser.docShellIsActive = true;
@@ -221,7 +224,6 @@
       this.currentParentTab._visuallySelected = true;
       this.overlay.classList.add("deck-selected");
 
-      this.currentParentTab.linkedBrowser.closest(".browserSidebarContainer").classList.add("zen-glance-background");
       this._duringOpening = false;
     }
 
