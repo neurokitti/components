@@ -1,8 +1,10 @@
 
 class ZenEssentialsToolbar extends PlacesViewBase {
-    constructor(placesUrl, rootElt, viewElt) {
+    constructor(placesUrl) {
+        ZenEssentialsToolbar._initInitialLayout();
+
         // We'll initialize the places URL after ensuring the folder exists
-        super(null, rootElt, viewElt);
+        super(null, document.getElementById("EssentialsToolbarItems"), document.getElementById("EssentialsToolbar"));
         // Do initialization of properties that don't depend on Places
         this._init();
         this._initPlacesFolder();
@@ -115,6 +117,29 @@ class ZenEssentialsToolbar extends PlacesViewBase {
         this._addEventListeners(this._dragRoot, this._cbEvents, false);
         this._addEventListeners(this._rootElt, ["popupshowing", "popuphidden"], true);
         this._addEventListeners(window, ["unload"], false);
+    }
+
+    static _initInitialLayout() {
+        const fragment = window.MozXULElement.parseXULToFragment(`
+            <hbox
+                    id="EssentialsToolbar"
+                    context="placesContext"
+                    onmouseup="BookmarksEventHandler.onMouseUp(event);"
+                    onclick="BookmarksEventHandler.onClick(event, this._placesView);"
+                    oncommand="BookmarksEventHandler.onCommand(event);"
+                    tooltip="bhTooltip"
+                    popupsinherittooltip="true">
+              <hbox id="EssentialsToolbarDropIndicatorHolder" align="center" collapsed="true">
+                <image id="EssentialsToolbarDropIndicator"
+                       collapsed="true"/>
+              </hbox>
+              <scrollbox orient="vertical"
+                         id="EssentialsToolbarItems"
+                         flex="1"/>
+            </hbox>
+        `);
+
+        document.getElementById("vertical-pinned-tabs-container").before(fragment);
     }
 
     _cbEvents = [
