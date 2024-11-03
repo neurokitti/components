@@ -41,8 +41,7 @@
     async init() {
       this.observer = new ZenPinnedTabsObserver();
       await ZenPinnedTabsStorage.init();
-      // TODO: Figure out if this is even needed - for now it's commented out
-      // await SessionStore.promiseInitialized;
+      await SessionStore.promiseInitialized;
       await  this._refreshPinnedTabs();
       this._initClosePinnedTabShortcut();
       this._insertItemsIntoTabContextMenu();

@@ -1,7 +1,11 @@
 var ZenPinnedTabsStorage = {
   async init() {
     console.log('ZenPinnedTabsStorage: Initializing...');
-    await this._ensureTable();
+    try {
+      await this._ensureTable();
+    } catch (e) {
+      console.warn('ZenPinnedTabsStorage: Failed to initialize', e);
+    }
   },
 
   async _ensureTable() {
