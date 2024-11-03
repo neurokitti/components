@@ -2,7 +2,7 @@
   const lazy = {};
 
   class ZenPinnedTabsObserver {
-    static ALL_EVENTS = ['TabPinned', 'TabUnpinned'];
+    static ALL_EVENTS = ['TabPinned', 'TabUnpinned', 'TabClose'];
 
     #listeners = [];
 
@@ -47,6 +47,8 @@
       this._initClosePinnedTabShortcut();
       this._insertItemsIntoTabContextMenu();
       this.observer.addPinnedTabListener(this._onPinnedTabEvent.bind(this));
+
+      this._zenClickEventListener = this._onTabClick.bind(this);
     }
 
     async _refreshPinnedTabs() {
@@ -95,7 +97,7 @@
       if (!pins?.length) {
         // If there are no pins, we should remove any existing pinned tabs
         for (let tab of gBrowser.tabs) {
-          if (tab.pinned && tab.getAttribute("zen-pin-id")) {
+          if (tab.pinned && !tab.getAttribute("zen-pin-id")) {
             gBrowser.removeTab(tab);
           }
         }
@@ -144,6 +146,7 @@
         }
 
         newTab.setAttribute("zen-pin-id", pin.uuid);
+        gBrowser.setInitialTabTitle(newTab, pin.title);
 
         if (pin.workspaceUuid) {
           newTab.setAttribute("zen-workspace-id", pin.workspaceUuid);
@@ -162,7 +165,7 @@
       const tab = event.target;
       switch (action) {
         case "TabPinned":
-          tab._zenClickEventListener = this._onTabClick.bind(this, tab);
+          tab._zenClickEventListener = this._zenClickEventListener;
           tab.addEventListener("click", tab._zenClickEventListener);
           this._setPinnedAttributes(tab);
           break;
@@ -173,13 +176,17 @@
             delete tab._zenClickEventListener;
           }
           break;
+        case "TabClose":
+          this._removePinnedAttributes(tab);
+          break;
         default:
           console.warn('ZenPinnedTabManager: Unhandled tab event', action);
           break;
       }
     }
 
-    _onTabClick(tab, e) {
+    _onTabClick(e) {
+      const tab = e.target;
       if (e.button === 1) {
         this._onCloseTabShortcut(e, tab);
       }
@@ -261,18 +268,6 @@
 
       if (cmdClose) {
         cmdClose.addEventListener('command', this._onCloseTabShortcut.bind(this));
-      }
-    }
-
-    setPinnedTabState(tabData, tab) {
-      tabData.zenPinId = tab.getAttribute("zen-pin-id");
-    }
-
-    updatePinnedTabForSessionRestore(tabData, tab) {
-      if (tabData.zenPinId) {
-        tab.setAttribute("zen-pin-id", tabData.zenPinId);
-      } else {
-        tab.removeAttribute("zen-pin-id");
       }
     }
 
@@ -376,6 +371,7 @@
 
     _insertItemsIntoTabContextMenu() {
       const elements = window.MozXULElement.parseXULToFragment(`
+            <menuseparator id="context_zen-pinned-tab-separator" hidden="true"/>
             <menuitem id="context_zen-replace-pinned-url-with-current"
                       data-lazy-l10n-id="tab-context-zen-replace-pinned-url-with-current"
                       hidden="true"
@@ -410,6 +406,7 @@
       document.getElementById("context_zen-reset-pinned-tab").hidden = !isVisible || !contextTab.getAttribute("zen-pin-id");
       document.getElementById("context_zen-replace-pinned-url-with-current").hidden = !isVisible;
       document.getElementById("context_zen-pin-tab-global").hidden = contextTab.pinned;
+      document.getElementById("context_zen-pinned-tab-separator").hidden = !isVisible;
     }
   }
 
