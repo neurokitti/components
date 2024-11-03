@@ -15,6 +15,7 @@
       if (!Services.prefs.getBoolPref('zen.theme.gradient', true) || !ZenWorkspaces.shouldHaveWorkspaces) {
         return;
       }
+      this.dragStartPosition = null;
 
       ChromeUtils.defineLazyGetter(this, 'panel', () => document.getElementById('PanelUI-zen-gradient-generator'));
       ChromeUtils.defineLazyGetter(this, 'toolbox', () => document.getElementById('TabsToolbar'));
@@ -73,6 +74,7 @@
       this.image.onload = this.onImageLoad.bind(this);
     }
 
+    
     onImageLoad() {
       // resize the image to fit the panel
       const imageSize = 300 - 20; // 20 is the padding (10px)
@@ -89,6 +91,7 @@
       // Call the rest of the initialization
       this.initContextMenu();
       this.initThemePicker();
+
 
       this._hasInitialized = true;
       this.onDarkModeChange(null);
@@ -167,6 +170,7 @@
       themePicker.style.setProperty('--zen-theme-picker-gradient-image', `url(${ZenThemePicker.GRADIENT_DISPLAY_URL})`);
       themePicker.addEventListener('mousemove', this.onDotMouseMove.bind(this));
       themePicker.addEventListener('mouseup', this.onDotMouseUp.bind(this));
+      themePicker.addEventListener('click', this.onThemePickerClick.bind(this));
     }
 
     calculateInitialPosition(color) {
@@ -231,16 +235,76 @@
       }
     }
 
-    onDotMouseDown(event) {
+    onThemePickerClick(event) {
       event.preventDefault();
-      if (event.button === 2) {
-        return;
+      
+      
+      if (event.button !== 0 || this.dragging ) return;
+  
+      const gradient = this.panel.querySelector('.zen-theme-picker-gradient');
+      const rect = gradient.getBoundingClientRect();
+      const padding = 90; // each side
+      
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const radius = (rect.width - padding) / 2;
+      let pixelX = event.clientX;
+      let pixelY = event.clientY;
+      
+      // Check if the click is within the circle
+      const distance = Math.sqrt((pixelX - centerX) ** 2 + (pixelY - centerY) ** 2);
+      if (distance > radius) {
+        return; // Don't create a dot if clicking outside the circle
       }
-      this.dragging = true;
-      this.draggedDot = event.target;
-      this.draggedDot.style.zIndex = 1;
-      this.draggedDot.classList.add('dragging');
+
+      // Check if we clicked on an existing dot
+      const clickedElement = event.target;
+      const isExistingDot = clickedElement.classList.contains('zen-theme-picker-dot');
+  
+      // Only proceed if not clicking on an existing dot
+      if (!isExistingDot) {
+        
+        const relativeX = event.clientX - rect.left;
+        const relativeY = event.clientY - rect.top;
+        
+        
+        const color = this.getColorFromPosition(relativeX, relativeY);
+  
+        // Create new dot
+        const dot = document.createElement('div');
+        dot.classList.add('zen-theme-picker-dot');
+        dot.addEventListener('mousedown', this.onDotMouseDown.bind(this));
+  
+        dot.style.left = `${relativeX}px`;
+        dot.style.top = `${relativeY}px`;
+        dot.style.setProperty('--zen-theme-picker-dot-color', `rgb(${color[0]}, ${color[1]}, ${color[2]})`);
+  
+        gradient.appendChild(dot);
+  
+        this.updateCurrentWorkspace(true);
+      }
+
+  }
+  
+  
+
+  onDotMouseDown(event) {
+    event.preventDefault();
+    if (event.button === 2) {
+      return;
     }
+    this.dragging = true;
+    this.draggedDot = event.target;
+    this.draggedDot.style.zIndex = 1;
+    this.draggedDot.classList.add('dragging');
+    
+    // Store the starting position of the drag
+    this.dragStartPosition = {
+      x: event.clientX,
+      y: event.clientY
+    };
+  }
+
 
     onDotMouseMove(event) {
       if (this.dragging) {
@@ -250,17 +314,19 @@
         // do NOT let the ball be draged outside of an imaginary circle. You can drag it anywhere inside the circle
         // if the distance between the center of the circle and the dragged ball is bigger than the radius, then the ball 
         // should be placed on the edge of the circle. If it's inside the circle, then the ball just follows the mouse
+   
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
         const radius = (rect.width - padding) / 2;
         let pixelX = event.clientX;
         let pixelY = event.clientY;
-        const distance = Math.sqrt((pixelX - centerX) ** 2 + (pixelY - centerY) ** 2);
+        const distance = Math.sqrt((pixelX - centerX)  **2 + (pixelY - centerY)  **2);
         if (distance > radius) {
           const angle = Math.atan2(pixelY - centerY, pixelX - centerX);
           pixelX = centerX + Math.cos(angle) * radius;
           pixelY = centerY + Math.sin(angle) * radius;
         }
+
         // set the location of the dot in pixels
         const relativeX = pixelX - rect.left;
         const relativeY = pixelY - rect.top;
@@ -288,7 +354,7 @@
 
     async addCustomColor() {
       const color = this.customColorInput.value;
-      if (!color || !color.match(/^#[0-9a-f]{3,8}$/i)) {
+      if (!color) {
         return;
       }
       // can be any color format, we just add it to the list as a dot, but hidden
@@ -301,6 +367,71 @@
       await this.updateCurrentWorkspace();
     }
 
+
+
+    onThemePickerClick(event) {
+      event.preventDefault();
+      
+      if (event.button !== 0 || this.dragging) return;
+  
+      const gradient = this.panel.querySelector('.zen-theme-picker-gradient');
+      const rect = gradient.getBoundingClientRect();
+      const padding = 90; // each side
+      
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const radius = (rect.width - padding) / 2;
+      let pixelX = event.clientX;
+      let pixelY = event.clientY;
+      
+      // Check if the click is within the circle
+      const distance = Math.sqrt((pixelX - centerX) ** 2 + (pixelY - centerY) ** 2);
+      if (distance > radius) {
+        return; 
+      }
+
+      
+      const clickedElement = event.target;
+      const isExistingDot = clickedElement.classList.contains('zen-theme-picker-dot');
+  
+      
+      if (!isExistingDot && this.numberOfDots < ZenThemePicker.MAX_DOTS) {
+        const relativeX = event.clientX - rect.left;
+        const relativeY = event.clientY - rect.top;
+        
+        const color = this.getColorFromPosition(relativeX, relativeY);
+  
+        const dot = document.createElement('div');
+        dot.classList.add('zen-theme-picker-dot');
+        dot.addEventListener('mousedown', this.onDotMouseDown.bind(this));
+  
+        dot.style.left = `${relativeX}px`;
+        dot.style.top = `${relativeY}px`;
+        dot.style.setProperty('--zen-theme-picker-dot-color', `rgb(${color[0]}, ${color[1]}, ${color[2]})`);
+  
+        gradient.appendChild(dot);
+  
+        this.updateCurrentWorkspace(true);
+      }
+    }
+
+    onDotMouseDown(event) {
+      event.preventDefault();
+      if (event.button === 2) {
+        return;
+      }
+      this.dragging = true;
+      this.draggedDot = event.target;
+      this.draggedDot.style.zIndex = 1;
+      this.draggedDot.classList.add('dragging');
+      
+      // Store the starting position of the drag
+      this.dragStartPosition = {
+        x: event.clientX,
+        y: event.clientY
+      };
+    }
+
     onDotMouseUp(event) {
       if (event.button === 2) {
         if (!event.target.classList.contains('zen-theme-picker-dot')) {
@@ -311,19 +442,21 @@
         this.numberOfDots--;
         return;
       }
+
       if (this.dragging) {
         event.preventDefault();
+        event.stopPropagation(); 
         this.dragging = false;
         this.draggedDot.style.zIndex = 1;
         this.draggedDot.classList.remove('dragging');
         this.draggedDot = null;
+        this.dragStartPosition = null; // Reset the drag start position
         return;
       }
+
       this.numberOfDots = this.panel.querySelectorAll('.zen-theme-picker-dot').length;
-      if (this.numberOfDots < ZenThemePicker.MAX_DOTS) {
-        this.createDot({c:[255, 255, 255]}); // right in the center!
-      }
     }
+
 
     themedColors(colors) {
       const isDarkMode = this.isDarkMode;
@@ -377,7 +510,7 @@
         texture,
       };
     }
-
+    //TODO: add a better noise system that adds noise not just changes transparency
     updateNoise(texture) {
       const wrapper = document.getElementById('zen-main-app-wrapper');
       wrapper.style.setProperty('--zen-grainy-background-opacity', texture);
@@ -439,7 +572,7 @@
         }
       }
       const result = this.pSBC(
-        this.isDarkMode ? 0.1 : -0.1, 
+        this.isDarkMode ? 0.5 : -0.5, 
         `rgb(${dominantColor[0]}, ${dominantColor[1]}, ${dominantColor[2]})`);
       return result?.match(/\d+/g).map(Number);
     }
@@ -461,9 +594,6 @@
 
         // get the theme from the window
         workspaceTheme = theme || windowWorkspace.theme;
-        workspaceTheme.gradientColors = workspaceTheme.gradientColors.filter(color => 
-          color.isCustom ? color.c.match(/^#[0-9a-f]{3,8}$/i) : true
-        );
 
         const appWrapper = browser.document.getElementById('zen-main-app-wrapper');
         if (!skipUpdate) {
