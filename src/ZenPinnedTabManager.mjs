@@ -36,18 +36,21 @@
     }
   }
 
-  class ZenPinnedTabManager extends ZenMultiWindowFeature {
+  class ZenPinnedTabManager extends ZenDOMOperatedFeature {
 
-    async init() {
+    init() {
       this.observer = new ZenPinnedTabsObserver();
-      await ZenPinnedTabsStorage.init();
-      await SessionStore.promiseInitialized;
-      await  this._refreshPinnedTabs();
       this._initClosePinnedTabShortcut();
       this._insertItemsIntoTabContextMenu();
       this.observer.addPinnedTabListener(this._onPinnedTabEvent.bind(this));
 
       this._zenClickEventListener = this._onTabClick.bind(this);
+    }
+
+    async initTabs() {
+      await ZenPinnedTabsStorage.init();
+      await SessionStore.promiseInitialized;
+      await  this._refreshPinnedTabs();
     }
 
     async _refreshPinnedTabs() {
@@ -139,9 +142,10 @@
         });
 
         // Set the favicon from cache
-        if (pin.iconUrl) {
-          gBrowser.setIcon(newTab, pin.iconUrl, null,
-              Services.scriptSecurityManager.getSystemPrincipal());
+        if (!!pin.iconUrl) {
+          // TODO: Figure out if there is a better way -
+          //  calling gBrowser.setIcon messes shit up and should be avoided. I think this works for now.
+          newTab.setAttribute("image", pin.iconUrl);
         }
 
         newTab.setAttribute("zen-pin-id", pin.uuid);
@@ -175,9 +179,10 @@
             delete tab._zenClickEventListener;
           }
           break;
-        case "TabClose":
-          this._removePinnedAttributes(tab);
-          break;
+          // TODO: Do this in a better way. Closing a second window could trigger remove tab and delete it from db
+        // case "TabClose":
+        //   this._removePinnedAttributes(tab);
+        //   break;
         default:
           console.warn('ZenPinnedTabManager: Unhandled tab event', action);
           break;
@@ -228,6 +233,11 @@
     }
 
     async _setPinnedAttributes(tab) {
+
+      if (tab.hasAttribute("zen-pin-id")) {
+        return;
+      }
+
       const browser = tab.linkedBrowser;
 
       const uuid = gZenUIManager.generateUuidv4();
